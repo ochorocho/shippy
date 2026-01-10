@@ -3,9 +3,11 @@ package deploy
 import (
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"shippy/internal/composer"
 	"shippy/internal/config"
+	"shippy/internal/lock"
 	"shippy/internal/rsync"
 	"shippy/internal/ssh"
 	"shippy/internal/ui"
@@ -116,6 +118,19 @@ func (d *Deployer) Deploy() error {
 
 	if d.host.SSHMultiplexing {
 		out.Info("  SSH multiplexing enabled - reusing connection for all operations")
+	}
+
+	// Acquire deployment lock (if enabled)
+	if d.host.IsLockEnabled() {
+		timeout := time.Duration(d.host.GetLockTimeout()) * time.Minute
+		locker := lock.NewLocker(client, d.host.DeployPath, timeout)
+
+		if err := locker.Acquire(fmt.Sprintf("Deploying to %s", d.hostName)); err != nil {
+			return err
+		}
+		defer locker.Release()
+
+		out.Info("  Deployment lock acquired (expires in %d minutes)", d.host.GetLockTimeout())
 	}
 
 	// Step 3: Create new release

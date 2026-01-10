@@ -27,6 +27,8 @@ type Host struct {
 	Include         []string          `yaml:"include,omitempty"`
 	Shared          []string          `yaml:"shared,omitempty"`
 	KeepReleases    int               `yaml:"keep_releases,omitempty"`
+	LockEnabled     *bool             `yaml:"lock_enabled,omitempty"`  // Pointer to distinguish unset from false
+	LockTimeout     int               `yaml:"lock_timeout,omitempty"`  // Timeout in minutes
 }
 
 // Command represents a command to execute
@@ -81,4 +83,20 @@ func (c *Config) GetHost(name string) (*Host, error) {
 		return nil, fmt.Errorf("host '%s' not found in configuration", name)
 	}
 	return &host, nil
+}
+
+// IsLockEnabled returns whether deployment locking is enabled (default: true)
+func (h *Host) IsLockEnabled() bool {
+	if h.LockEnabled == nil {
+		return true // Default to enabled
+	}
+	return *h.LockEnabled
+}
+
+// GetLockTimeout returns the lock timeout in minutes (default: 15)
+func (h *Host) GetLockTimeout() int {
+	if h.LockTimeout <= 0 {
+		return 15 // Default 15 minutes like Capistrano
+	}
+	return h.LockTimeout
 }
