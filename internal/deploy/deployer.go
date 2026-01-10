@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"shippy/internal/cache"
 	"shippy/internal/composer"
 	"shippy/internal/config"
 	"shippy/internal/rsync"
@@ -67,17 +66,6 @@ func (d *Deployer) Deploy() error {
 
 	out.Success("Found %d files to sync", len(files))
 
-	// Step 1.5: Initialize cache
-	fileCache, err := cache.New(d.host.RsyncSrc)
-	if err != nil {
-		out.Info("  Warning: failed to initialize cache: %v (continuing without cache)", err)
-		fileCache = nil
-	} else {
-		if err := fileCache.Load(d.hostName); err != nil {
-			out.Info("  Warning: failed to load cache: %v (continuing with empty cache)", err)
-		}
-	}
-
 	// Step 2: Connect to server
 	out.StepNumber(2, "Connecting to %s", d.host.Hostname)
 
@@ -128,16 +116,9 @@ func (d *Deployer) Deploy() error {
 	// Step 4: Sync files to release
 	out.StepNumber(4, "Syncing files to release")
 
-	syncer := rsync.NewSyncer(client, releasePath, d.verbose, fileCache)
+	syncer := rsync.NewSyncer(client, releasePath, d.verbose, d.host.DeployPath)
 	if err := syncer.Sync(files); err != nil {
 		return fmt.Errorf("sync failed: %w", err)
-	}
-
-	// Save cache after successful sync
-	if fileCache != nil {
-		if err := fileCache.Save(d.hostName); err != nil {
-			out.Info("  Warning: failed to save cache: %v", err)
-		}
 	}
 
 	// Step 5: Create shared symlinks
@@ -204,7 +185,6 @@ func (d *Deployer) getExcludePatterns() []string {
 	// Start with default TYPO3 excludes
 	defaults := []string{
 		".git/",
-		".cache/", // Shippy cache directory
 		".gitignore",
 		".shippy.yaml",
 		".shippy.yaml.example",

@@ -168,7 +168,12 @@ func (c *Client) RunCommand(cmd string) (string, error) {
 
 	output, err := session.CombinedOutput(cmd)
 	if err != nil {
-		return string(output), fmt.Errorf("command failed: %w", err)
+		// Include command and output in error message for better debugging
+		outputStr := strings.TrimSpace(string(output))
+		if outputStr != "" {
+			return outputStr, fmt.Errorf("command failed: '%s'\nOutput: %s\nError: %w", cmd, outputStr, err)
+		}
+		return "", fmt.Errorf("command failed: '%s'\nError: %w", cmd, err)
 	}
 
 	return string(output), nil

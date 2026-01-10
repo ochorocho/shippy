@@ -9,7 +9,7 @@ hosts:
     ssh_multiplexing: false
     keep_releases: 2
     exclude:
-      - /.rst$/
+      - "**/*.rst"
     include:
       - "public/.htaccess"
       - "vendor/"

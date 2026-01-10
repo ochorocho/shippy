@@ -59,17 +59,15 @@ func (r *ReleaseManager) UpdateCurrentSymlink(releasePath string) error {
 	currentPath := filepath.Join(r.deployPath, "current")
 	releaseName := filepath.Base(releasePath)
 
-	// Create temp symlink
-	tempLink := filepath.Join(r.deployPath, "current_tmp")
-	cmd := fmt.Sprintf("ln -nfs releases/%s %s", releaseName, tempLink)
+	// Use ln -sfn to force create/update the symlink
+	// -s: create symbolic link
+	// -f: force (remove existing destination file)
+	// -n: treat destination as normal file if it's a symlink to directory
+	cmd := fmt.Sprintf("ln -sfn releases/%s %s", releaseName, currentPath)
 	if _, err := r.client.RunCommand(cmd); err != nil {
-		return fmt.Errorf("failed to create temp symlink: %w", err)
-	}
-
-	// Atomically replace current symlink
-	cmd = fmt.Sprintf("mv -Tf %s %s", tempLink, currentPath)
-	if _, err := r.client.RunCommand(cmd); err != nil {
-		return fmt.Errorf("failed to update current symlink: %w", err)
+		// Provide helpful error message with manual fix instructions
+		return fmt.Errorf("failed to update 'current' symlink: %w\n\nTo fix manually, SSH to the server and run:\n  cd %s\n  rm -f current\n  ln -s releases/%s current",
+			err, r.deployPath, releaseName)
 	}
 
 	return nil

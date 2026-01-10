@@ -194,22 +194,21 @@ func (s *Scanner) Scan() ([]FileInfo, error) {
 func (s *Scanner) shouldInclude(relPath string, isDir bool) bool {
 	pathParts := strings.Split(relPath, "/")
 
-	// Check include patterns first (highest priority)
-	for _, pattern := range s.includes {
-		result := pattern.Match(pathParts, isDir)
-		if result == gitignore.Exclude || result == gitignore.NoMatch {
-			// For include patterns, we want to include if pattern matches
-			if result == gitignore.Exclude {
-				return true
-			}
-		}
-	}
-
-	// Check exclude patterns
+	// Check exclude patterns FIRST (highest priority)
+	// User explicitly wants to exclude these files
 	for _, pattern := range s.excludes {
 		result := pattern.Match(pathParts, isDir)
 		if result == gitignore.Exclude {
 			return false
+		}
+	}
+
+	// Then check include patterns (override .gitignore)
+	// Include patterns are meant to override .gitignore exclusions
+	for _, pattern := range s.includes {
+		result := pattern.Match(pathParts, isDir)
+		if result == gitignore.Exclude {
+			return true
 		}
 	}
 
