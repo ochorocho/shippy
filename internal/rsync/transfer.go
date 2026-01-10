@@ -5,25 +5,26 @@ import (
 	"path/filepath"
 	"strings"
 
+	"shippy/internal/errors"
 	"shippy/internal/ssh"
 	"shippy/internal/ui"
 )
 
 // Syncer handles file synchronization over SSH
 type Syncer struct {
-	client      *ssh.Client
-	remotePath  string
-	verbose     bool
-	deployPath  string // Base deploy path for cache directory
+	client     *ssh.Client
+	remotePath string
+	verbose    bool
+	deployPath string // Base deploy path for cache directory
 }
 
 // NewSyncer creates a new file syncer
 func NewSyncer(client *ssh.Client, remotePath string, verbose bool, deployPath string) *Syncer {
 	return &Syncer{
-		client:      client,
-		remotePath:  remotePath,
-		verbose:     verbose,
-		deployPath:  deployPath,
+		client:     client,
+		remotePath: remotePath,
+		verbose:    verbose,
+		deployPath: deployPath,
 	}
 }
 
@@ -94,44 +95,8 @@ func (s *Syncer) Sync(files []FileInfo) error {
 	}
 
 	// Upload only changed/new files
-	if len(filesToUpload) > 0 {
-		fmt.Printf("\n")
-		out.Blue.Printf("→ Uploading %d changed/new files to cache\n", len(filesToUpload))
-		fmt.Printf("\n")
-
-		transferred := 0
-		var totalSize int64
-
-		for i, file := range filesToUpload {
-			remoteCachePath := filepath.Join(cachePath, file.RelPath)
-
-			if s.verbose {
-				// Verbose mode: show each file
-				out.Yellow.Printf("  [%d/%d] Uploading: %s\n", i+1, len(filesToUpload), file.RelPath)
-			} else {
-				// Progress bar mode: show progress with current file
-				out.PrintProgressBar(i+1, len(filesToUpload), file.RelPath)
-			}
-
-			if err := s.client.UploadFile(file.FullPath, remoteCachePath, file.Mode); err != nil {
-				if !s.verbose {
-					out.ClearLine()
-				}
-				return fmt.Errorf("failed to upload %s: %w", file.RelPath, err)
-			}
-
-			transferred++
-			totalSize += file.Size
-		}
-
-		if !s.verbose {
-			out.ClearLine()
-		}
-
-		fmt.Printf("\n")
-		out.Success("Uploaded %d files to cache (%.2f MB)", transferred, float64(totalSize)/(1024*1024))
-	} else {
-		out.Info("  No files to upload - all files are cached")
+	if err := s.uploadWithProgress(filesToUpload, cachePath, out); err != nil {
+		return err
 	}
 
 	// Delete files from cache that no longer exist locally
@@ -223,4 +188,49 @@ func (s *Syncer) getRemoteFileIndex(cachePath string) (map[string]RemoteFileInfo
 	}
 
 	return index, nil
+}
+
+// uploadWithProgress uploads files with progress reporting
+func (s *Syncer) uploadWithProgress(filesToUpload []FileInfo, cachePath string, out *ui.Output) error {
+	if len(filesToUpload) == 0 {
+		out.Info("  No files to upload - all files are cached")
+		return nil
+	}
+
+	fmt.Printf("\n")
+	out.Blue.Printf("→ Uploading %d changed/new files to cache\n", len(filesToUpload))
+	fmt.Printf("\n")
+
+	transferred := 0
+	var totalSize int64
+
+	for i, file := range filesToUpload {
+		remoteCachePath := filepath.Join(cachePath, file.RelPath)
+
+		if s.verbose {
+			// Verbose mode: show each file
+			out.Yellow.Printf("  [%d/%d] Uploading: %s\n", i+1, len(filesToUpload), file.RelPath)
+		} else {
+			// Progress bar mode: show progress with current file
+			out.PrintProgressBar(i+1, len(filesToUpload), file.RelPath)
+		}
+
+		if err := s.client.UploadFile(file.FullPath, remoteCachePath, file.Mode); err != nil {
+			if !s.verbose {
+				out.ClearLine()
+			}
+			return errors.FileUploadError(file.RelPath, err)
+		}
+
+		transferred++
+		totalSize += file.Size
+	}
+
+	if !s.verbose {
+		out.ClearLine()
+	}
+
+	fmt.Printf("\n")
+	out.Success("Uploaded %d files to cache (%.2f MB)", transferred, float64(totalSize)/(1024*1024))
+	return nil
 }

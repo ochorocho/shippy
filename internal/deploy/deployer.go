@@ -11,6 +11,22 @@ import (
 	"shippy/internal/ui"
 )
 
+// defaultExcludePatterns contains patterns that should always be excluded from deployment
+var defaultExcludePatterns = []string{
+	".git/",
+	".gitignore",
+	".shippy.yaml",
+	".shippy.yaml.example",
+	"node_modules/",
+	".env.local",
+	".env.*.local",
+	"var/cache/",
+	"var/log/",
+	"var/transient/",
+	".DS_Store",
+	"Thumbs.db",
+}
+
 // Deployer orchestrates the deployment process
 type Deployer struct {
 	config   *config.Config
@@ -182,22 +198,6 @@ func (d *Deployer) Deploy() error {
 
 // getExcludePatterns returns the combined list of exclude patterns
 func (d *Deployer) getExcludePatterns() []string {
-	// Start with default TYPO3 excludes
-	defaults := []string{
-		".git/",
-		".gitignore",
-		".shippy.yaml",
-		".shippy.yaml.example",
-		"node_modules/",
-		".env.local",
-		".env.*.local",
-		"var/cache/",
-		"var/log/",
-		"var/transient/",
-		".DS_Store",
-		"Thumbs.db",
-	}
-
-	// Add user-defined excludes
-	return append(defaults, d.host.Exclude...)
+	// Combine default excludes with user-defined excludes
+	return append(defaultExcludePatterns, d.host.Exclude...)
 }

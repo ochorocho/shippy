@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"golang.org/x/crypto/ssh"
+
+	"shippy/internal/errors"
 )
 
 // ClientOptions represents SSH client configuration options
@@ -137,7 +139,7 @@ func (c *Client) Connect() error {
 
 	client, err := ssh.Dial("tcp", addr, c.config)
 	if err != nil {
-		return fmt.Errorf("failed to connect to SSH server: %w", err)
+		return errors.SSHError(fmt.Sprintf("connecting to %s@%s", c.user, addr), err)
 	}
 
 	c.client = client
@@ -162,18 +164,14 @@ func (c *Client) Close() error {
 func (c *Client) RunCommand(cmd string) (string, error) {
 	session, err := c.client.NewSession()
 	if err != nil {
-		return "", fmt.Errorf("failed to create session: %w", err)
+		return "", errors.SSHError("creating SSH session", err)
 	}
 	defer session.Close()
 
 	output, err := session.CombinedOutput(cmd)
 	if err != nil {
-		// Include command and output in error message for better debugging
 		outputStr := strings.TrimSpace(string(output))
-		if outputStr != "" {
-			return outputStr, fmt.Errorf("command failed: '%s'\nOutput: %s\nError: %w", cmd, outputStr, err)
-		}
-		return "", fmt.Errorf("command failed: '%s'\nError: %w", cmd, err)
+		return outputStr, errors.CommandError(cmd, outputStr, err)
 	}
 
 	return string(output), nil

@@ -34,7 +34,6 @@ type SyncOptions struct {
 // Scanner scans files in a directory and determines which should be synced
 type Scanner struct {
 	opts           SyncOptions
-	matcher        gitignore.Matcher
 	excludes       []gitignore.Pattern
 	includes       []gitignore.Pattern
 	gitignoreCache map[string][]gitignore.Pattern // Cache of .gitignore patterns by directory
@@ -52,9 +51,14 @@ func NewScanner(opts SyncOptions) (*Scanner, error) {
 		s.excludes = append(s.excludes, gitignore.ParsePattern(pattern, nil))
 	}
 
-	// Parse include patterns
+	// Parse include patterns - prefix with ! to create negation patterns
+	// This allows them to override .gitignore exclusions
 	for _, pattern := range opts.IncludePatterns {
-		s.includes = append(s.includes, gitignore.ParsePattern(pattern, nil))
+		negatePattern := pattern
+		if !strings.HasPrefix(pattern, "!") {
+			negatePattern = "!" + pattern
+		}
+		s.includes = append(s.includes, gitignore.ParsePattern(negatePattern, nil))
 	}
 
 	// Load root .gitignore if requested
@@ -88,6 +92,19 @@ func (s *Scanner) loadGitignoreFromDir(dir string) error {
 	}
 	defer file.Close()
 
+	// Calculate relative path from source directory to this .gitignore directory
+	// This ensures patterns are scoped to their directory, not applied globally
+	relDir, err := filepath.Rel(s.opts.SourceDir, dir)
+	if err != nil {
+		return fmt.Errorf("failed to get relative path for .gitignore domain: %w", err)
+	}
+
+	// Convert to forward slashes and split into path components for domain
+	var domain []string
+	if relDir != "." {
+		domain = strings.Split(filepath.ToSlash(relDir), "/")
+	}
+
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -95,8 +112,8 @@ func (s *Scanner) loadGitignoreFromDir(dir string) error {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		// Parse pattern relative to this directory
-		pattern := gitignore.ParsePattern(line, nil)
+		// Parse pattern with domain so it only applies relative to this directory
+		pattern := gitignore.ParsePattern(line, domain)
 		patterns = append(patterns, pattern)
 	}
 
@@ -194,25 +211,29 @@ func (s *Scanner) Scan() ([]FileInfo, error) {
 func (s *Scanner) shouldInclude(relPath string, isDir bool) bool {
 	pathParts := strings.Split(relPath, "/")
 
-	// Check exclude patterns FIRST (highest priority)
-	// User explicitly wants to exclude these files
+	// Check if any exclude pattern matches
+	excluded := false
 	for _, pattern := range s.excludes {
 		result := pattern.Match(pathParts, isDir)
 		if result == gitignore.Exclude {
-			return false
+			excluded = true
+			break
 		}
 	}
 
-	// Then check include patterns (override .gitignore)
-	// Include patterns are meant to override .gitignore exclusions
-	for _, pattern := range s.includes {
-		result := pattern.Match(pathParts, isDir)
-		if result == gitignore.Exclude {
-			return true
+	// If excluded, check if any include pattern overrides the exclusion
+	if excluded {
+		for _, pattern := range s.includes {
+			result := pattern.Match(pathParts, isDir)
+			// Include result (negation pattern) overrides exclusion
+			if result == gitignore.Include {
+				return true
+			}
 		}
+		return false // Excluded and no override
 	}
 
-	// Include by default
+	// Not excluded - include by default
 	return true
 }
 

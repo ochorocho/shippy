@@ -10,9 +10,9 @@ hosts:
     keep_releases: 2
     exclude:
       - "**/*.rst"
+      - "**/*.md"
     include:
       - "public/.htaccess"
-      - "vendor/"
 
     shared:
       - .env
@@ -22,7 +22,7 @@ hosts:
       - public/uploads/
 
 commands:
-  - name: Clear TYPO3 cache
+  - name: Install TYPO3
     run: |
       TYPO3_DB_DRIVER=mysqli \
       TYPO3_DB_USERNAME=db \
