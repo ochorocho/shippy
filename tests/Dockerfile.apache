@@ -1,0 +1,12 @@
+FROM php:8.4-apache-bullseye
+
+COPY ./ssh_keys/tinnie_key.pub /root/.ssh/authorized_keys
+
+RUN apt update -y && apt install openssh-server rsync libicu-dev libzip-dev unzip -y && \
+    docker-php-ext-install intl mysqli && \
+    mkdir -p /root/.ssh && \
+    chmod 640 /root/.ssh/authorized_keys && \
+    sed -ri -e 's!/var/www/html!/var/www/html/current/public!g' /etc/apache2/sites-available/*.conf && \
+    sed -ri -e 's!/var/www/!/var/www/html/current/public!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
+
+CMD [ "sh", "-c", "service ssh start && apache2-foreground" ]

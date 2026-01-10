@@ -1,0 +1,80 @@
+# Shippy - TYPO3 Deployment Configuration
+# This is an example configuration file showing all available options
+
+hosts:
+  staging:
+    # SSH connection details
+    hostname: staging.example.com
+    port: 22  # SSH port (default: 22)
+    remote_user: deploy
+    ssh_key: ~/.ssh/id_rsa
+
+    # SSH multiplexing: reuse one TCP connection for all SSH operations
+    # Improves performance by avoiding reconnection overhead
+    # Default: false (disabled)
+    ssh_multiplexing: true
+
+    # Optional: Advanced SSH options (see man ssh_config)
+    # ssh_options:
+    #   ConnectTimeout: "10"
+    #   ServerAliveInterval: "60"
+    #   Compression: "yes"
+    #   StrictHostKeyChecking: "no"
+
+    # Deployment configuration
+    deploy_path: /var/www/{{name}}
+    rsync_src: ./
+    keep_releases: 5  # Number of releases to keep (default: 5)
+
+    # Optional: Additional exclude patterns (beyond .gitignore)
+    # Patterns support gitignore-style syntax
+    exclude:
+      - "*.log"              # Exclude all log files
+      - ".env.example"       # Exclude .env.example
+      - "tests/"             # Exclude tests directory
+      - ".ddev/"             # Exclude DDEV configuration
+      - "*.md"               # Exclude markdown files
+
+    # Optional: Force include files despite .gitignore
+    # Useful for including vendor/ or other gitignored deployment files
+    include:
+      - "public/.htaccess"   # Include .htaccess files
+      # - "vendor/"          # Uncomment to include vendor directory
+
+    # Shared files/directories (symlinked from shared/ to each release)
+    shared:
+      - .env
+      - var/log/
+      - var/session/
+      - public/fileadmin/
+      - public/uploads/
+
+  production:
+    hostname: www.example.com
+    port: 2222  # Example: custom SSH port
+    remote_user: deploy
+    deploy_path: /var/www/{{name}}/production
+    rsync_src: ./
+    ssh_key: ~/.ssh/id_rsa_production
+    ssh_multiplexing: true  # Enable for faster deployments
+    keep_releases: 10
+    shared:
+      - .env
+      - var/log/
+      - var/session/
+      - public/fileadmin/
+      - public/uploads/
+
+# Commands to run after deployment (on remote server)
+commands:
+  - name: Clear TYPO3 cache
+    run: ./vendor/bin/typo3 cache:flush
+
+  - name: Run extension setup
+    run: ./vendor/bin/typo3 extension:setup
+
+  - name: Database migrations
+    run: ./vendor/bin/typo3 upgrade:run
+
+  - name: Warmup caches
+    run: ./vendor/bin/typo3 cache:warmup

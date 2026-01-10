@@ -1,0 +1,22 @@
+services:
+  typo3-tinnie-apache:
+    build: 
+      context: .
+      dockerfile: Dockerfile.apache
+    ports:
+      - "7171:80"
+      - "2424:22"
+    container_name: typo3-tinnie-apache
+    volumes:
+      - ./www:/var/www/html
+    depends_on:
+      - typo3-tinnie-mariadb
+  typo3-tinnie-mariadb:
+    image: mariadb:10.11
+    environment:
+      MYSQL_DATABASE: db
+      MYSQL_USER: db
+      MYSQL_PASSWORD: db
+      MYSQL_TCP_PORT: 3308
+      MYSQL_ROOT_PASSWORD: db
+    container_name: typo3-tinnie-mariadb

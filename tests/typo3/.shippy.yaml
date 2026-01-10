@@ -1,0 +1,46 @@
+hosts:
+  production:
+    hostname: 127.0.0.1
+    port: 2424
+    remote_user: root
+    deploy_path: /var/www/html
+    rsync_src: ./
+    ssh_key: /Users/jochen/Development/shippy/tests/ssh_keys/tinnie_key
+    ssh_multiplexing: false
+    keep_releases: 2
+    exclude:
+      - /.rst$/
+    include:
+      - "public/.htaccess"
+      - "vendor/"
+
+    shared:
+      - .env
+      - var/log/
+      - var/session/
+      - public/fileadmin/
+      - public/uploads/
+
+commands:
+  - name: Clear TYPO3 cache
+    run: |
+      TYPO3_DB_DRIVER=mysqli \
+      TYPO3_DB_USERNAME=db \
+      TYPO3_DB_PORT=3308 \
+      TYPO3_DB_HOST=typo3-tinnie-mariadb \
+      TYPO3_DB_DBNAME=db \
+      TYPO3_DB_PASSWORD=db \
+      TYPO3_SETUP_ADMIN_EMAIL=admin@example.com \
+      TYPO3_SETUP_ADMIN_USERNAME=admin \
+      TYPO3_PROJECT_NAME="Automated Setup" \
+      TYPO3_SERVER_TYPE="apache" \
+      ./vendor/bin/typo3 setup --force -n
+
+  - name: Run extension setup
+    run: ./vendor/bin/typo3 extension:setup
+
+  - name: Database migrations
+    run: ./vendor/bin/typo3 upgrade:run
+
+  - name: Warmup caches
+    run: ./vendor/bin/typo3 cache:flush
