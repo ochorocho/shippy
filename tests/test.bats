@@ -9,7 +9,7 @@ setup() {
 
   export DEPLOYMENT_SOURCE="$BATS_TEST_DIRNAME/typo3"
   export DEPLOYMENT_TARGET="$BATS_TEST_DIRNAME/www"
-  export BIN="$DEPLOYMENT_SOURCE/../../tinnie"
+  export BIN="$DEPLOYMENT_SOURCE/../../dist/tinnie"
   cd $DEPLOYMENT_SOURCE
   # composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader --no-dev
 
