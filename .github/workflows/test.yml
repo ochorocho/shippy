@@ -23,6 +23,14 @@ jobs:
         id: checkout
         uses: actions/checkout@v1
 
+      - name: Install dependencies
+        uses: php-actions/composer@v6
+        with:
+          php_version: "8.4"
+          version: "2.9"
+          args: "--ignore-platform-reqs --optimize-autoloader"
+          working_dir: "tests/typo3"
+
       - name: Download Linux amd64 artifact
         uses: actions/download-artifact@v4
         with:
