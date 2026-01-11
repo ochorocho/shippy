@@ -42,14 +42,13 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// Check if .tinnie.yaml already exists
 	if _, err := os.Stat(cfgFile); err == nil && !force {
 		out.Info("⚠ Configuration file already exists: %s", cfgFile)
-		fmt.Println()
-		fmt.Println("Use --force to overwrite the existing file:")
-		fmt.Printf("  tinnie init --force\n")
-		fmt.Println()
+		out.EmptyLine()
+		out.Println("Use --force to overwrite the existing file:")
+		out.Println("  tinnie init --force")
+		out.EmptyLine()
 		return nil
 	}
 
-	// Generate minimal config
 	out.Step("Creating %s", cfgFile)
 
 	configContent := generateMinimalConfig()
@@ -60,19 +59,18 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	out.Success("Created %s", cfgFile)
-	fmt.Println()
+	out.EmptyLine()
 
-	// Success message
 	out.HeaderGreen("Configuration initialized successfully!")
 
-	fmt.Println("Next steps:")
-	fmt.Println()
-	fmt.Printf("  1. Edit %s with your server details\n", cfgFile)
-	fmt.Println("  2. Validate your configuration:")
-	fmt.Println("     tinnie config validate")
-	fmt.Println("  3. Deploy to your server:")
-	fmt.Println("     tinnie deploy production")
-	fmt.Println()
+	out.Println("Next steps:")
+	out.EmptyLine()
+	out.Println("  1. Edit %s with your server details", cfgFile)
+	out.Println("  2. Validate your configuration:")
+	out.Println("     tinnie config validate")
+	out.Println("  3. Deploy to your server:")
+	out.Println("     tinnie deploy production")
+	out.EmptyLine()
 
 	return nil
 }

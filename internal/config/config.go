@@ -44,8 +44,8 @@ type Host struct {
 	Include         []string          `yaml:"include,omitempty"`
 	Shared          []string          `yaml:"shared,omitempty"`
 	KeepReleases    int               `yaml:"keep_releases,omitempty"`
-	LockEnabled     *bool             `yaml:"lock_enabled,omitempty"`  // Pointer to distinguish unset from false
-	LockTimeout     int               `yaml:"lock_timeout,omitempty"`  // Timeout in minutes
+	LockEnabled     *bool             `yaml:"lock_enabled,omitempty"` // Pointer to distinguish unset from false
+	LockTimeout     int               `yaml:"lock_timeout,omitempty"` // Timeout in minutes
 }
 
 // Command represents a command to execute

@@ -1,12 +1,9 @@
 package cmd
 
 import (
-	"fmt"
-	"sort"
 	"time"
 
 	"github.com/spf13/cobra"
-	"tinnie/internal/config"
 	"tinnie/internal/lock"
 	"tinnie/internal/ssh"
 	"tinnie/internal/ui"
@@ -38,36 +35,17 @@ func init() {
 func runUnlock(cmd *cobra.Command, args []string) error {
 	out := ui.New()
 
-	// Load config
 	out.Info("Loading configuration from: %s", cfgFile)
-	cfg, err := config.Load(cfgFile)
+	cfg, err := loadConfigFile(out)
 	if err != nil {
-		out.Error("Failed to load config: %v", err)
 		return err
 	}
 
-	// Determine host: from args or interactive selection
-	var hostName string
-	if len(args) > 0 {
-		hostName = args[0]
-	} else {
-		// Get available hosts sorted alphabetically
-		hosts := make([]string, 0, len(cfg.Hosts))
-		for name := range cfg.Hosts {
-			hosts = append(hosts, name)
-		}
-		sort.Strings(hosts)
-
-		// Prompt for selection
-		selected, err := out.SelectHost(hosts)
-		if err != nil {
-			out.Error("Host selection failed: %v", err)
-			return err
-		}
-		hostName = selected
+	hostName, err := selectHostFromArgs(cfg, args, out)
+	if err != nil {
+		return err
 	}
 
-	// Get host config
 	host, err := cfg.GetHost(hostName)
 	if err != nil {
 		out.Error("Failed to get host config: %v", err)
@@ -116,14 +94,13 @@ func runUnlock(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Show lock info
-	fmt.Printf("\n")
+	out.EmptyLine()
 	out.Info("Current lock information:")
-	fmt.Printf("  Locked by: %s\n", info.LockedBy)
-	fmt.Printf("  Locked at: %s\n", info.LockedAt.Format("2006-01-02 15:04:05"))
-	fmt.Printf("  Expires:   %s\n", info.ExpiresAt.Format("2006-01-02 15:04:05"))
-	fmt.Printf("  Message:   %s\n", info.Message)
-	fmt.Printf("\n")
+	out.Println("  Locked by: %s", info.LockedBy)
+	out.Println("  Locked at: %s", info.LockedAt.Format("2006-01-02 15:04:05"))
+	out.Println("  Expires:   %s", info.ExpiresAt.Format("2006-01-02 15:04:05"))
+	out.Println("  Message:   %s", info.Message)
+	out.EmptyLine()
 
 	// Force unlock
 	if err := locker.ForceUnlock(); err != nil {

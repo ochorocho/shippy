@@ -111,19 +111,84 @@ func (o *Output) ClearLine() {
 	fmt.Print("\n")
 }
 
+// Println prints a line with a newline
+func (o *Output) Println(format string, args ...interface{}) {
+	fmt.Printf(format+"\n", args...)
+}
+
+// EmptyLine prints an empty line
+func (o *Output) EmptyLine() {
+	fmt.Println()
+}
+
+// PrintYAML prints YAML content with syntax highlighting
+func (o *Output) PrintYAML(yamlContent string) {
+	lines := strings.Split(yamlContent, "\n")
+
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			fmt.Println()
+			continue
+		}
+
+		if strings.HasPrefix(strings.TrimSpace(line), "#") {
+			fmt.Printf("\033[90m%s\033[0m\n", line)
+			continue
+		}
+
+		if strings.Contains(line, ":") {
+			parts := strings.SplitN(line, ":", 2)
+			key := parts[0]
+			value := ""
+			if len(parts) > 1 {
+				value = parts[1]
+			}
+
+			indent := len(key) - len(strings.TrimLeft(key, " "))
+			keyTrimmed := strings.TrimSpace(key)
+			fmt.Printf("%s\033[36m%s\033[0m:", strings.Repeat(" ", indent), keyTrimmed)
+
+			if value != "" {
+				valueTrimmed := strings.TrimSpace(value)
+				if valueTrimmed == "true" || valueTrimmed == "false" {
+					fmt.Printf(" \033[33m%s\033[0m\n", valueTrimmed)
+				} else if isNumber(valueTrimmed) {
+					fmt.Printf(" \033[35m%s\033[0m\n", valueTrimmed)
+				} else {
+					fmt.Printf(" \033[32m%s\033[0m\n", valueTrimmed)
+				}
+			} else {
+				fmt.Println()
+			}
+			continue
+		}
+
+		if strings.Contains(line, "- ") {
+			parts := strings.SplitN(line, "- ", 2)
+			indent := parts[0]
+			value := ""
+			if len(parts) > 1 {
+				value = parts[1]
+			}
+			fmt.Printf("%s\033[90m-\033[0m \033[32m%s\033[0m\n", indent, value)
+			continue
+		}
+
+		fmt.Println(line)
+	}
+}
+
 // SelectHost prompts the user to select a host from a list using Bubble Tea
 func (o *Output) SelectHost(hosts []string) (string, error) {
 	if len(hosts) == 0 {
 		return "", fmt.Errorf("no hosts available")
 	}
 
-	// If only one host, use it automatically
 	if len(hosts) == 1 {
 		o.Info("Only one host configured: %s", hosts[0])
 		return hosts[0], nil
 	}
 
-	// Create and run Bubble Tea selector with input/output options
 	model := newSelectorModel(hosts)
 	p := tea.NewProgram(
 		model,
@@ -150,4 +215,13 @@ func (o *Output) SelectHost(hosts []string) (string, error) {
 	}
 
 	return m.selected, nil
+}
+
+func isNumber(s string) bool {
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return len(s) > 0
 }

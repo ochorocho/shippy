@@ -11,9 +11,9 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:          "tinnie",
-	Short:        "A TYPO3 deployment tool",
-	Long:         `Tinnie is a minimal, opinionated deployment tool for TYPO3 projects.`,
+	Use:           "tinnie",
+	Short:         "A TYPO3 deployment tool",
+	Long:          `Tinnie is a minimal, opinionated deployment tool for TYPO3 projects.`,
 	SilenceErrors: true, // Commands handle their own error display
 }
 

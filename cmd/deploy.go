@@ -1,11 +1,8 @@
 package cmd
 
 import (
-	"sort"
-
 	"github.com/spf13/cobra"
 	"tinnie/internal/composer"
-	"tinnie/internal/config"
 	"tinnie/internal/deploy"
 	"tinnie/internal/ui"
 )
@@ -45,42 +42,22 @@ func init() {
 func runDeploy(cmd *cobra.Command, args []string) error {
 	out := ui.New()
 
-	// Load config
 	out.Info("Loading configuration from: %s", cfgFile)
-	cfg, err := config.Load(cfgFile)
+	cfg, err := loadConfigFile(out)
 	if err != nil {
-		out.Error("Failed to load config: %v", err)
 		return err
 	}
 
-	// Apply defaults before validation
 	cfg.ApplyDefaults()
 
-	// Validate config
 	if err := cfg.Validate(); err != nil {
 		out.Error("Config validation failed: %v", err)
 		return err
 	}
 
-	// Determine host: from args or interactive selection
-	var hostName string
-	if len(args) > 0 {
-		hostName = args[0]
-	} else {
-		// Get available hosts sorted alphabetically
-		hosts := make([]string, 0, len(cfg.Hosts))
-		for name := range cfg.Hosts {
-			hosts = append(hosts, name)
-		}
-		sort.Strings(hosts)
-
-		// Prompt for selection
-		selected, err := out.SelectHost(hosts)
-		if err != nil {
-			out.Error("Host selection failed: %v", err)
-			return err
-		}
-		hostName = selected
+	hostName, err := selectHostFromArgs(cfg, args, out)
+	if err != nil {
+		return err
 	}
 
 	// Load composer.json using configured path

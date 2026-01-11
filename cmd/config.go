@@ -47,14 +47,12 @@ func init() {
 func runValidate(cmd *cobra.Command, args []string) error {
 	out := ui.New()
 
-	fmt.Println("Validating configuration...")
-	fmt.Println()
+	out.Println("Validating configuration...")
+	out.EmptyLine()
 
-	// Load config
 	out.Step("Loading config from: %s", cfgFile)
-	cfg, err := config.Load(cfgFile)
+	cfg, err := loadConfigFile(out)
 	if err != nil {
-		out.Error("Failed to load config: %v", err)
 		return err
 	}
 	out.Success("Config file loaded successfully")
@@ -93,12 +91,11 @@ func runValidate(cmd *cobra.Command, args []string) error {
 	}
 	out.Success("Processed configuration is valid")
 
-	fmt.Println()
+	out.EmptyLine()
 	out.Success("Configuration is valid!")
-	fmt.Println()
+	out.EmptyLine()
 
-	// Print host summary
-	fmt.Printf("Configured hosts (%d):\n", len(cfg.Hosts))
+	out.Println("Configured hosts (%d):", len(cfg.Hosts))
 	for name, host := range cfg.Hosts {
 		fmt.Printf("  • %s\n", name)
 		if host.Port != 0 && host.Port != 22 {
@@ -138,10 +135,8 @@ func runValidate(cmd *cobra.Command, args []string) error {
 func runShow(cmd *cobra.Command, args []string) error {
 	out := ui.New()
 
-	// Load config
-	cfg, err := config.Load(cfgFile)
+	cfg, err := loadConfigFile(out)
 	if err != nil {
-		out.Error("Failed to load config: %v", err)
 		return err
 	}
 
@@ -180,26 +175,23 @@ func runShow(cmd *cobra.Command, args []string) error {
 
 func showCompleteConfig(cfg *config.Config, out *ui.Output) error {
 	out.Header("Complete Configuration (with defaults applied)")
-	fmt.Println()
+	out.EmptyLine()
 
-	// Convert to YAML with syntax highlighting
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to generate YAML: %w", err)
 	}
 
-	printYAMLWithHighlighting(string(data))
+	out.PrintYAML(string(data))
 	return nil
 }
 
 func showHostConfig(cfg *config.Config, host *config.Host, hostName string, out *ui.Output) error {
 	out.Header(fmt.Sprintf("Configuration for host: %s", hostName))
-	fmt.Println()
+	out.EmptyLine()
 
-	// Build resolved config for this host
 	resolvedConfig := buildResolvedHostConfig(cfg, host, hostName)
-
-	printYAMLWithHighlighting(resolvedConfig)
+	out.PrintYAML(resolvedConfig)
 	return nil
 }
 
@@ -257,78 +249,3 @@ func formatStringSlice(slice []string) string {
 	return fmt.Sprintf("[\"%s\"]", strings.Join(slice, "\", \""))
 }
 
-func printYAMLWithHighlighting(yamlContent string) {
-	lines := strings.Split(yamlContent, "\n")
-
-	for _, line := range lines {
-		if strings.TrimSpace(line) == "" {
-			fmt.Println()
-			continue
-		}
-
-		// Comments
-		if strings.HasPrefix(strings.TrimSpace(line), "#") {
-			fmt.Printf("\033[90m%s\033[0m\n", line) // Gray
-			continue
-		}
-
-		// Keys and values
-		if strings.Contains(line, ":") {
-			parts := strings.SplitN(line, ":", 2)
-			key := parts[0]
-			value := ""
-			if len(parts) > 1 {
-				value = parts[1]
-			}
-
-			// Color the key
-			indent := len(key) - len(strings.TrimLeft(key, " "))
-			keyTrimmed := strings.TrimSpace(key)
-
-			fmt.Printf("%s\033[36m%s\033[0m:", strings.Repeat(" ", indent), keyTrimmed) // Cyan for keys
-
-			// Color the value
-			if value != "" {
-				valueTrimmed := strings.TrimSpace(value)
-
-				// Booleans
-				if valueTrimmed == "true" || valueTrimmed == "false" {
-					fmt.Printf(" \033[33m%s\033[0m\n", valueTrimmed) // Yellow for booleans
-				// Numbers
-				} else if isNumber(valueTrimmed) {
-					fmt.Printf(" \033[35m%s\033[0m\n", valueTrimmed) // Magenta for numbers
-				// Strings
-				} else {
-					fmt.Printf(" \033[32m%s\033[0m\n", valueTrimmed) // Green for strings
-				}
-			} else {
-				fmt.Println()
-			}
-			continue
-		}
-
-		// List items
-		if strings.Contains(line, "- ") {
-			parts := strings.SplitN(line, "- ", 2)
-			indent := parts[0]
-			value := ""
-			if len(parts) > 1 {
-				value = parts[1]
-			}
-			fmt.Printf("%s\033[90m-\033[0m \033[32m%s\033[0m\n", indent, value) // Gray dash, green value
-			continue
-		}
-
-		// Default
-		fmt.Println(line)
-	}
-}
-
-func isNumber(s string) bool {
-	for _, c := range s {
-		if c < '0' || c > '9' {
-			return false
-		}
-	}
-	return len(s) > 0
-}
