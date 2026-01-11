@@ -70,7 +70,7 @@ create_test_composer_json() {
   "description": "Test TYPO3 project for Shippy",
   "type": "project",
   "require": {
-    "typo3/cms-core": "^12.0"
+    "typo3/cms-core": "^13.4"
   },
   "config": {
     "bin-dir": "vendor/bin"
