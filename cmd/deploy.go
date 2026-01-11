@@ -53,6 +53,9 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Apply defaults before validation
+	cfg.ApplyDefaults()
+
 	// Validate config
 	if err := cfg.Validate(); err != nil {
 		out.Error("Config validation failed: %v", err)

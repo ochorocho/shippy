@@ -27,32 +27,32 @@ hosts:
     deploy_path: /var/www/html
     ssh_key: /Users/jochen/Development/shippy/tests/ssh_keys/tinnie_key
 
-# commands:
-#   - name: Install TYPO3
-#     run: |
-#       TYPO3_DB_DRIVER=mysqli \
-#       TYPO3_DB_USERNAME=db \
-#       TYPO3_DB_PORT=3308 \
-#       TYPO3_DB_HOST=typo3-tinnie-mariadb \
-#       TYPO3_DB_DBNAME=db \
-#       TYPO3_DB_PASSWORD=db \
-#       TYPO3_SETUP_ADMIN_EMAIL=admin@example.com \
-#       TYPO3_SETUP_ADMIN_USERNAME=admin \
-#       TYPO3_PROJECT_NAME="Automated Setup" \
-#       TYPO3_SERVER_TYPE="apache" \
-#       ./vendor/bin/typo3 setup --force -n
+commands:
+  # - name: Install TYPO3
+  #   run: |
+  #     TYPO3_DB_DRIVER=mysqli \
+  #     TYPO3_DB_USERNAME=db \
+  #     TYPO3_DB_PORT=3308 \
+  #     TYPO3_DB_HOST=typo3-tinnie-mariadb \
+  #     TYPO3_DB_DBNAME=db \
+  #     TYPO3_DB_PASSWORD=db \
+  #     TYPO3_SETUP_ADMIN_EMAIL=admin@example.com \
+  #     TYPO3_SETUP_ADMIN_USERNAME=admin \
+  #     TYPO3_PROJECT_NAME="Automated Setup" \
+  #     TYPO3_SERVER_TYPE="apache" \
+  #     ./vendor/bin/typo3 setup --force -n
 
-#   - name: Run extension setup
-#     run: ./{{config.bin-dir|vendor/bin}}/typo3 extension:setup
+  - name: Run extension setup
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 extension:setup
 
-#   - name: Run upgrade wizards
-#     run: ./{{config.bin-dir|vendor/bin}}/typo3 upgrade:run
+  - name: Run upgrade wizards
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 upgrade:run
 
-#   - name: Run upgrade wizards
-#     run: ./{{config.bin-dir|vendor/bin}}/typo3 language:update
+  - name: Run upgrade wizards
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 language:update
 
-#   - name: Flush caches
-#     run: ./{{config.bin-dir|vendor/bin}}/typo3 cache:flush
+  - name: Flush caches
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 cache:flush
 
-#   - name: Warmup caches
-#     run: ./{{config.bin-dir|vendor/bin}}/typo3 cache:flush
+  - name: Warmup caches
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 cache:flush
