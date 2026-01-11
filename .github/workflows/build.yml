@@ -35,18 +35,46 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
+      - name: Get version information
+        id: version
+        shell: bash
+        run: |
+          chmod +x scripts/get-version.sh
+          VERSION=$(./scripts/get-version.sh)
+          COMMIT=$(git rev-parse HEAD)
+          BUILD_DATE=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+          echo "build_date=$BUILD_DATE" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
       - name: Build binary
         shell: bash
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
-        # @todo: Add version to binary
         run: |
           mkdir -p dist
-          go build -o dist/tinnie
+          go build \
+            -ldflags "-X 'tinnie/cmd.Version=${{ steps.version.outputs.version }}' \
+                      -X 'tinnie/cmd.GitCommit=${{ steps.version.outputs.commit }}' \
+                      -X 'tinnie/cmd.BuildDate=${{ steps.version.outputs.build_date }}'" \
+            -o dist/tinnie
+
+      - name: Generate checksums
+        uses: Solratic/checksum-action@v1
+        with:
+          pattern: "dist/tinnie"
+          suffix: "checksum"
 
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v5.0.0
         with:
           name: tinnie-${{ matrix.os }}-${{ matrix.arch }}
           path: "dist/tinnie"
+
+      - name: Upload a SHA Artifact
+        uses: actions/upload-artifact@v5.0.0
+        with:
+          name: tinnie-${{ matrix.os }}-${{ matrix.arch }}.sha
+          path: "dist/sha256sum.txt"
