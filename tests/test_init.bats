@@ -58,6 +58,7 @@ teardown() {
 }
 
 @test "Should create valid YAML configuration" {
+  create_test_composer_json
   run -0 ${BIN} init
   assert_success
   assert_file_exist ".shippy.yaml"
