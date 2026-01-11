@@ -27,7 +27,7 @@ teardown() {
 @test "Should show help for deploy command" {
   run -0 ${BIN} deploy --help
   assert_success
-  assert_output --partial "Deploy to a target host"
+  assert_output --partial "Deploy your TYPO3 project to a target host defined in .shippy.yaml"
   assert_output --partial "deployment process:"
   assert_output --partial "Example:"
 }

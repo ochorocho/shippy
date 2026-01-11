@@ -44,14 +44,13 @@ teardown() {
 
 @test "Deploy application with minimal config" {
   set -eu -o pipefail
-  run ${BIN} deploy production --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
+  run ${BIN} deploy production
   assert_success
 
-  # assert_output --partial "Uploaded 15310 files to cache"
-  # assert_output --partial "[1/4] Install TYPO3"
-  # assert_output --partial "[2/4] Run extension setup"
-  assert_output --partial "[3/4] Database migrations"
-  assert_output --partial "[4/4] Warmup caches"
+  assert_output --partial "Congratulations - TYPO3 Setup is done."
+  assert_output --partial "[OK] Extension(s)"
+  assert_output --partial "[OK] No wizards left to run."
+  assert_output --partial "Updating language packs"
   assert_output --partial "Release activated - site is now live!"
-  assert_output --partial "Kept last 5 releases"
+  assert_output --partial "Kept last 2 releases"
 }
