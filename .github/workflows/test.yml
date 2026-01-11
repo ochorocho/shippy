@@ -26,6 +26,8 @@ jobs:
 
       - name: Run Gosec Security Scanner
         uses: securego/gosec@master
+        with:
+          args: ./...
         # with:
         #   # we let the report trigger content trigger a failure using the GitHub Security features.
         #   args: '-no-fail -fmt sarif -out results.sarif ./...'
