@@ -50,7 +50,4 @@ jobs:
 
       - name: Run Tests (Serial Execution)
         shell: bash
-        run: |
-          # IMPORTANT: Tests must run serially - DO NOT use --jobs flag
-          # Tests share Docker resources and will conflict if run in parallel
-          bats tests/
+        run: make test
