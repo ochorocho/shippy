@@ -10,7 +10,7 @@ on:
 jobs:
   build-and-push:
     name: "Build go ${{ matrix.go-version }} for ${{ matrix.os }}/${{ matrix.arch }}"
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-24.04
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     strategy:
