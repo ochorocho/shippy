@@ -23,6 +23,10 @@ var validateCmd = &cobra.Command{
 	RunE:  runValidate,
 }
 
+var (
+	rawOutput bool
+)
+
 var showCmd = &cobra.Command{
 	Use:   "show [host]",
 	Short: "Show the complete resolved configuration",
@@ -31,8 +35,11 @@ var showCmd = &cobra.Command{
 If a host is specified, shows the effective configuration for that host
 including global settings and per-host overrides.
 
+By default, template variables are resolved. Use --raw to show unresolved templates.
+
 Examples:
-  tinnie config show              # Show complete config
+  tinnie config show              # Show complete config with resolved templates
+  tinnie config show --raw        # Show raw config without resolving templates
   tinnie config show production   # Show config for production host`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runShow,
@@ -42,6 +49,7 @@ func init() {
 	rootCmd.AddCommand(configCmd)
 	configCmd.AddCommand(validateCmd)
 	configCmd.AddCommand(showCmd)
+	showCmd.Flags().BoolVar(&rawOutput, "raw", false, "Show raw config without resolving template variables")
 }
 
 func runValidate(cmd *cobra.Command, args []string) error {
@@ -140,24 +148,22 @@ func runShow(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Load composer.json for template processing using configured path
-	composerPath := cfg.GetComposerPath()
-	comp, err := composer.Parse(composerPath)
-	if err != nil {
-		out.Error("Failed to load composer.json from %s: %v", composerPath, err)
-		return err
-	}
-
-	// Process templates
-	if err := cfg.ProcessTemplates(comp); err != nil {
-		out.Error("Template processing failed: %v", err)
-		return err
-	}
-
-	// Apply defaults
 	cfg.ApplyDefaults()
 
-	// If host specified, show host-specific resolved config
+	if !rawOutput {
+		composerPath := cfg.GetComposerPath()
+		comp, err := composer.Parse(composerPath)
+		if err != nil {
+			out.Error("Failed to load composer.json from %s: %v", composerPath, err)
+			return err
+		}
+
+		if err := cfg.ProcessTemplates(comp); err != nil {
+			out.Error("Template processing failed: %v", err)
+			return err
+		}
+	}
+
 	if len(args) > 0 {
 		hostName := args[0]
 		host, err := cfg.GetHost(hostName)
@@ -169,7 +175,6 @@ func runShow(cmd *cobra.Command, args []string) error {
 		return showHostConfig(cfg, host, hostName, out)
 	}
 
-	// Show complete config
 	return showCompleteConfig(cfg, out)
 }
 

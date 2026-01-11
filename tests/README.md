@@ -1,6 +1,6 @@
-# Shippy Test Suite
+# Tinnie Test Suite
 
-Comprehensive Bats test suite for testing all Shippy commands and functionality.
+Comprehensive Bats test suite for testing all Tinnie commands and functionality.
 
 ## Prerequisites
 
@@ -127,13 +127,13 @@ bats --filter-tags integration tests/
 
 ### Commands Tested
 
-- ✅ `shippy` - Root command and help
-- ✅ `shippy env` - Environment variables
-- ✅ `shippy config validate` - Configuration validation
-- ✅ `shippy config show` - Configuration display
-- ✅ `shippy init` - Configuration initialization
-- ✅ `shippy deploy` - Deployment (unit and integration)
-- ✅ `shippy unlock` - Lock removal
+- ✅ `tinnie` - Root command and help
+- ✅ `tinnie env` - Environment variables
+- ✅ `tinnie config validate` - Configuration validation
+- ✅ `tinnie config show` - Configuration display
+- ✅ `tinnie init` - Configuration initialization
+- ✅ `tinnie deploy` - Deployment (unit and integration)
+- ✅ `tinnie unlock` - Lock removal
 
 ### Scenarios Covered
 

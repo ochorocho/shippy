@@ -90,12 +90,23 @@ teardown() {
   assert_output --partial "Complete Configuration"
   assert_output --partial "hosts"
   assert_output --partial "production"
+  assert_output --partial "./vendor/bin/typo3 cache:warmup"
+}
+
+@test "Should show complete raw configuration (template variables not rendered)" {
+  run -0 ${BIN} config show --raw --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
+  assert_success
+  assert_output --partial "Complete Configuration"
+  assert_output --partial "Warmup caches"
+  assert_output --partial "./{{config.bin-dir|vendor/bin}}/typo3 cache:warmup"
 }
 
 @test "Should show configuration for specific host" {
   run -0 ${BIN} config show production --config ${BATS_TEST_DIRNAME}/config-test/multi-host.yaml
   assert_success
-  assert_output --partial "production"
+  assert_output --partial "Configuration for host: production"
+  assert_output --partial "# Global Settings"
+  assert_output --partial "# Host Configuration"
 }
 
 @test "Should show configuration with defaults applied" {
