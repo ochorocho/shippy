@@ -47,6 +47,9 @@ jobs:
           mkdir -p dist
           go build -o dist/tinnie-${{ steps.os.outputs.name }}-${{ steps.os.outputs.arch }}
           ls -la dist/*
+      -
+        name: Set up Docker Compose
+        uses: docker/setup-compose-action@v1
 
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v5.0.0
