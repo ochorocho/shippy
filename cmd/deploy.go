@@ -56,10 +56,11 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Load composer.json
-	comp, err := composer.Parse("composer.json")
+	// Load composer.json using configured path
+	composerPath := cfg.GetComposerPath()
+	comp, err := composer.Parse(composerPath)
 	if err != nil {
-		out.Error("Failed to load composer.json: %v", err)
+		out.Error("Failed to load composer.json from %s: %v", composerPath, err)
 		return err
 	}
 

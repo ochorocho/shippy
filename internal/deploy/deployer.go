@@ -66,9 +66,9 @@ func (d *Deployer) Deploy() error {
 	out.StepNumber(1, "Scanning files")
 
 	scanOpts := rsync.SyncOptions{
-		SourceDir:       d.host.RsyncSrc,
+		SourceDir:       d.config.GetRsyncSrc(d.host),
 		ExcludePatterns: d.getExcludePatterns(),
-		IncludePatterns: d.host.Include,
+		IncludePatterns: d.config.GetInclude(d.host),
 		UseGitignore:    true,
 	}
 
@@ -121,8 +121,8 @@ func (d *Deployer) Deploy() error {
 	}
 
 	// Acquire deployment lock (if enabled)
-	if d.host.IsLockEnabled() {
-		timeout := time.Duration(d.host.GetLockTimeout()) * time.Minute
+	if d.config.IsLockEnabled(d.host) {
+		timeout := time.Duration(d.config.GetLockTimeout(d.host)) * time.Minute
 		locker := lock.NewLocker(client, d.host.DeployPath, timeout)
 
 		if err := locker.Acquire(fmt.Sprintf("Deploying to %s", d.hostName)); err != nil {
@@ -130,7 +130,7 @@ func (d *Deployer) Deploy() error {
 		}
 		defer locker.Release()
 
-		out.Info("  Deployment lock acquired (expires in %d minutes)", d.host.GetLockTimeout())
+		out.Info("  Deployment lock acquired (expires in %d minutes)", d.config.GetLockTimeout(d.host))
 	}
 
 	// Step 3: Create new release
@@ -153,14 +153,15 @@ func (d *Deployer) Deploy() error {
 	}
 
 	// Step 5: Create shared symlinks
-	if len(d.host.Shared) > 0 {
+	sharedItems := d.config.GetShared(d.host)
+	if len(sharedItems) > 0 {
 		out.StepNumber(5, "Creating shared symlinks")
 
-		if err := releaseMgr.CreateSharedSymlinks(releasePath, d.host.Shared); err != nil {
+		if err := releaseMgr.CreateSharedSymlinks(releasePath, sharedItems); err != nil {
 			return fmt.Errorf("failed to create shared symlinks: %w", err)
 		}
 
-		out.Success("Created %d shared symlinks", len(d.host.Shared))
+		out.Success("Created %d shared symlinks", len(sharedItems))
 	}
 
 	// Step 6: Execute commands in the new release
@@ -194,10 +195,7 @@ func (d *Deployer) Deploy() error {
 	// Step 8: Cleanup old releases
 	out.StepNumber(8, "Cleaning up old releases")
 
-	keepReleases := d.host.KeepReleases
-	if keepReleases == 0 {
-		keepReleases = 5 // Default
-	}
+	keepReleases := d.config.GetKeepReleases(d.host)
 
 	if err := releaseMgr.CleanupOldReleases(keepReleases); err != nil {
 		return fmt.Errorf("failed to cleanup old releases: %w", err)
@@ -213,6 +211,6 @@ func (d *Deployer) Deploy() error {
 
 // getExcludePatterns returns the combined list of exclude patterns
 func (d *Deployer) getExcludePatterns() []string {
-	// Combine default excludes with user-defined excludes
-	return append(defaultExcludePatterns, d.host.Exclude...)
+	// Combine default excludes with user-defined excludes (from config or host)
+	return append(defaultExcludePatterns, d.config.GetExclude(d.host)...)
 }

@@ -16,8 +16,15 @@ var (
 
 // ProcessTemplates replaces template variables in the config with values from composer.json
 func (c *Config) ProcessTemplates(comp *composer.Composer) error {
+	var err error
+
+	// Process global RsyncSrc
+	c.RsyncSrc, err = replaceTemplateVars(c.RsyncSrc, comp)
+	if err != nil {
+		return fmt.Errorf("global rsync_src: %w", err)
+	}
+
 	for hostName, host := range c.Hosts {
-		var err error
 
 		host.Hostname, err = replaceTemplateVars(host.Hostname, comp)
 		if err != nil {
