@@ -4,5 +4,5 @@ hosts:
     remote_user: root
     deploy_path: /var/www/html
     # optional but required for testing
-    ssh_key: /Users/jochen/Development/shippy/tests/ssh_keys/tinnie_key
+    ssh_key: ../ssh_keys/tinnie_key
     port: 2424
