@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-and-push:
-    name: "Build with go ${{ matrix.go-version }} on ${{ matrix.runner }}"
+    name: "Build go ${{ matrix.go-version }} for ${{ matrix.os }}/${{ matrix.arch }}"
     runs-on: ${{ matrix.runner }}
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -18,22 +18,17 @@ jobs:
       matrix:
         go-version:
           - "1.24"
-        runner:
-          - "ubuntu-24.04"
-          - "macos-15"
-          - "ubuntu-24.04-arm"
-          - "macos-15-intel"
+        os:
+            - darwin
+            - linux
+        arch:
+          - amd64
+          - arm64
 
     steps:
       - name: Checkout
         id: checkout
         uses: actions/checkout@v1
-
-      - name: Get OS name
-        id: os
-        run: |
-          echo "name=$(uname -s | tr '[A-Z]' '[a-z]')" >> $GITHUB_OUTPUT
-          echo "arch=$(uname -m | sed 's/aarch64/arm64/' | sed 's/x86_64/amd64/')" >> $GITHUB_OUTPUT
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -42,11 +37,13 @@ jobs:
 
       - name: Build binary
         shell: bash
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
         # @todo: Add version to binary
         run: |
           mkdir -p dist
           go build -o dist/tinnie
-          ls -la dist/*
       -
         name: Set up Docker Compose
         uses: docker/setup-compose-action@v1
@@ -54,7 +51,7 @@ jobs:
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v5.0.0
         with:
-          name: tinnie-${{ steps.os.outputs.name }}-${{ steps.os.outputs.arch }}
+          name: tinnie-${{ matrix.os }}-${{ matrix.arch }}
           path: "dist/tinnie"
       - name: Setup Bats and Bats libs
         id: setup-bats
