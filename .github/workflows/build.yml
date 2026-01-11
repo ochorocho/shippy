@@ -52,10 +52,14 @@ jobs:
         uses: actions/upload-artifact@v5.0.0
         with:
           name: tinnie-${{ steps.os.outputs.name }}-${{ steps.os.outputs.arch }}
-          path: 'dist/tinnie-${{ steps.os.outputs.name }}-${{ steps.os.outputs.arch }}'
-      - name: My test
+          path: "dist/tinnie-${{ steps.os.outputs.name }}-${{ steps.os.outputs.arch }}"
+      - name: Setup Bats and Bats libs
+        id: setup-bats
+        uses: bats-core/bats-action@3.0.1
+
+      - name: Test Tinnie
         shell: bash
         # env:
         #   BATS_LIB_PATH: ${{ steps.setup-bats.outputs.lib-path }}
         #   TERM: xterm
-        run: bash bats tests/test.bats
+        run: bats tests/test.bats
