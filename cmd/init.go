@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
-	"shippy/internal/composer"
 	"shippy/internal/ui"
+
+	"github.com/spf13/cobra"
 )
 
 var initCmd = &cobra.Command{
@@ -49,32 +49,10 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Load composer.json
-	out.Step("Loading composer.json")
-	comp, err := composer.Parse("composer.json")
-	if err != nil {
-		out.Error("Failed to load composer.json: %v", err)
-		fmt.Println()
-		out.Info("Make sure you run this command in a directory with a composer.json file.")
-		return err
-	}
-	out.Success("composer.json loaded")
-	fmt.Println()
-
-	// Get project name
-	projectName, err := comp.GetString("name")
-	if err != nil {
-		out.Info("⚠ Could not read project name from composer.json, using 'myproject'")
-		projectName = "myproject"
-	} else {
-		out.Success("Project: %s", projectName)
-	}
-	fmt.Println()
-
 	// Generate minimal config
 	out.Step("Creating %s", cfgFile)
 
-	configContent := generateMinimalConfig(projectName)
+	configContent := generateMinimalConfig()
 
 	if err := os.WriteFile(cfgFile, []byte(configContent), 0644); err != nil {
 		out.Error("Failed to write config file: %v", err)
@@ -99,7 +77,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func generateMinimalConfig(projectName string) string {
+func generateMinimalConfig() string {
 	return fmt.Sprintf(`# Shippy - TYPO3 Deployment Configuration
 # Generated with: shippy init
 
