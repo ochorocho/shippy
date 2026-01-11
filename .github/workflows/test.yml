@@ -1,0 +1,44 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+
+jobs:
+  test-tinnie:
+    name: "Test Tinnie on Linux amd64"
+    runs-on: ubuntu-24.04
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v1
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Build binary
+        shell: bash
+        env:
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          mkdir -p dist
+          go build -o dist/tinnie
+
+      - name: Set up Docker Compose
+        uses: docker/setup-compose-action@v1
+
+      - name: Setup Bats and Bats libs
+        id: setup-bats
+        uses: bats-core/bats-action@3.0.1
+
+      - name: Test Tinnie
+        shell: bash
+        run: bats tests/test.bats
