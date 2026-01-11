@@ -76,5 +76,5 @@ jobs:
       - name: Upload a SHA Artifact
         uses: actions/upload-artifact@v5.0.0
         with:
-          name: tinnie-${{ matrix.os }}-${{ matrix.arch }}.sha
-          path: "dist/sha256sum.txt"
+          name: tinnie-${{ matrix.os }}-${{ matrix.arch }}-checksum
+          path: "dist/tinnie.txt.checksum"
