@@ -53,3 +53,9 @@ jobs:
         with:
           name: tinnie-${{ steps.os.outputs.name }}-${{ steps.os.outputs.arch }}
           path: 'dist/tinnie-${{ steps.os.outputs.name }}-${{ steps.os.outputs.arch }}'
+      - name: My test
+        shell: bash
+        # env:
+        #   BATS_LIB_PATH: ${{ steps.setup-bats.outputs.lib-path }}
+        #   TERM: xterm
+        run: bash bats tests/test.bats
