@@ -29,6 +29,7 @@ go.work
 Thumbs.db
 
 # Config files (keep examples)
+dist/
 .shippy.yaml
 tests/www/*
 !tests/www/.gitkeep
