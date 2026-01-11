@@ -1,7 +1,10 @@
 package ui
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 
 	"github.com/fatih/color"
@@ -107,4 +110,50 @@ func (o *Output) PrintProgressBar(current, total int, currentItem string) {
 // ClearLine clears the current line
 func (o *Output) ClearLine() {
 	fmt.Print("\n")
+}
+
+// SelectHost prompts the user to select a host from a list
+func (o *Output) SelectHost(hosts []string) (string, error) {
+	if len(hosts) == 0 {
+		return "", fmt.Errorf("no hosts available")
+	}
+
+	// If only one host, use it automatically
+	if len(hosts) == 1 {
+		o.Info("Only one host configured: %s", hosts[0])
+		return hosts[0], nil
+	}
+
+	// Display available hosts
+	fmt.Println()
+	o.Cyan.Println("Available hosts:")
+	fmt.Println()
+	for i, host := range hosts {
+		fmt.Printf("  %s %d%s %s\n", o.Cyan.Sprint("["), i+1, o.Cyan.Sprint("]"), host)
+	}
+	fmt.Println()
+
+	// Prompt for selection
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		o.Yellow.Printf("Select host (1-%d): ", len(hosts))
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			return "", fmt.Errorf("failed to read input: %w", err)
+		}
+
+		input = strings.TrimSpace(input)
+		if input == "" {
+			continue
+		}
+
+		// Parse selection
+		selection, err := strconv.Atoi(input)
+		if err != nil || selection < 1 || selection > len(hosts) {
+			o.Error("Invalid selection. Please enter a number between 1 and %d", len(hosts))
+			continue
+		}
+
+		return hosts[selection-1], nil
+	}
 }

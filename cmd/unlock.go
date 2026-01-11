@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -22,10 +23,12 @@ or when you need to force-unlock a deployment that is stuck.
 WARNING: Using this command while a deployment is in progress may cause issues.
 
 Example:
+  shippy unlock                  (interactive host selection)
   shippy unlock production
   shippy unlock staging`,
-	Args: cobra.ExactArgs(1),
-	RunE: runUnlock,
+	Args:         cobra.MaximumNArgs(1),
+	RunE:         runUnlock,
+	SilenceUsage: true, // Don't show usage on errors
 }
 
 func init() {
@@ -33,7 +36,6 @@ func init() {
 }
 
 func runUnlock(cmd *cobra.Command, args []string) error {
-	hostName := args[0]
 	out := ui.New()
 
 	// Load config
@@ -42,6 +44,27 @@ func runUnlock(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		out.Error("Failed to load config: %v", err)
 		return err
+	}
+
+	// Determine host: from args or interactive selection
+	var hostName string
+	if len(args) > 0 {
+		hostName = args[0]
+	} else {
+		// Get available hosts sorted alphabetically
+		hosts := make([]string, 0, len(cfg.Hosts))
+		for name := range cfg.Hosts {
+			hosts = append(hosts, name)
+		}
+		sort.Strings(hosts)
+
+		// Prompt for selection
+		selected, err := out.SelectHost(hosts)
+		if err != nil {
+			out.Error("Host selection failed: %v", err)
+			return err
+		}
+		hostName = selected
 	}
 
 	// Get host config

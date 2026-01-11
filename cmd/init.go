@@ -103,14 +103,44 @@ func generateMinimalConfig(projectName string) string {
 	return fmt.Sprintf(`# Shippy - TYPO3 Deployment Configuration
 # Generated with: shippy init
 
+# Optional: Path to composer.json (default: composer.json in current directory)
+# composer: composer.json
+
+# Optional: Local directory to deploy (default: .)
+# rsync_src: ./
+
+# Optional: Number of releases to keep (default: 5)
+# keep_releases: 5
+
+# Optional: Shared files/directories (persistent across releases)
+# These are symlinked from shared/ to each release
+# shared:
+#   - .env
+#   - var/log/
+#   - var/session/
+#   - public/fileadmin/
+#   - public/uploads/
+
+# Optional: Files/patterns to exclude from deployment
+# exclude:
+#   - "*.log"
+#   - ".env.example"
+
+# Optional: Deployment locking (default: enabled, 15 min timeout)
+# lock_enabled: true
+# lock_timeout: 15
+
 hosts:
   production:
-    # SSH connection details
+    # Required: SSH connection details
     hostname: www.example.com
-    port: 22  # SSH port (default: 22, can be omitted)
     remote_user: deploy
+    deploy_path: /var/www/{{name}}
 
-    # SSH key (optional - auto-detects from ~/.ssh/ if not specified)
+    # Optional: SSH port (default: 22)
+    # port: 22
+
+    # Optional: SSH key (auto-detects from ~/.ssh/ if not specified)
     # Always use the private key, not the .pub file
     # ssh_key: ~/.ssh/id_ed25519
 
@@ -121,41 +151,33 @@ hosts:
     #   ServerAliveInterval: "60"
     #   Compression: "yes"
 
-    # SSH multiplexing: reuse one connection for all operations (faster)
-    # Default: false (disabled for compatibility)
-    ssh_multiplexing: false
+    # Optional: SSH multiplexing - reuse one connection for all operations (default: false)
+    # ssh_multiplexing: false
 
-    # Deployment path on the server
-    # Uses {{name}} template variable from composer.json
-    deploy_path: /var/www/{{name}}
+    # Optional: Per-host overrides for global settings
+    # keep_releases: 3
+    # rsync_src: ./dist
 
-    # Local directory to deploy
-    rsync_src: ./
-
-    # Number of releases to keep (default: 5)
-    keep_releases: 5
-
-    # Shared files/directories (persistent across releases)
-    # These are symlinked from shared/ to each release
-    shared:
-      - .env
-      - var/log/
-      - var/session/
-      - public/fileadmin/
-      - public/uploads/
-
-# Commands to run after deployment (executed in release directory)
-commands:
-  - name: Clear TYPO3 cache
-    run: ./vendor/bin/typo3 cache:flush
-
-  - name: Run extension setup
-    run: ./vendor/bin/typo3 extension:setup
-
-  - name: Database migrations
-    run: ./vendor/bin/typo3 upgrade:run
-
-  - name: Warmup caches
-    run: ./vendor/bin/typo3 cache:warmup
+# Optional: Commands to run after deployment (executed in release directory)
+# If omitted, default TYPO3 commands will be used:
+#   - extension:setup
+#   - upgrade:run
+#   - language:update
+#   - cache:flush
+#   - cache:warmup
+#
+# Uncomment to customize:
+# commands:
+#   - name: Clear TYPO3 cache
+#     run: ./vendor/bin/typo3 cache:flush
+#
+#   - name: Run extension setup
+#     run: ./vendor/bin/typo3 extension:setup
+#
+#   - name: Database migrations
+#     run: ./vendor/bin/typo3 upgrade:run
+#
+#   - name: Warmup caches
+#     run: ./vendor/bin/typo3 cache:warmup
 `)
 }

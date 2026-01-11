@@ -209,6 +209,32 @@ func (c *Config) ApplyDefaults() {
 	if c.LockTimeout == 0 {
 		c.LockTimeout = 15
 	}
+
+	// Set default TYPO3 commands if not specified
+	if len(c.Commands) == 0 {
+		c.Commands = []Command{
+			{
+				Name: "Run extension setup",
+				Run:  "./{{config.bin-dir|vendor/bin}}/typo3 extension:setup",
+			},
+			{
+				Name: "Run upgrade wizards",
+				Run:  "./{{config.bin-dir|vendor/bin}}/typo3 upgrade:run",
+			},
+			{
+				Name: "Update language files",
+				Run:  "./{{config.bin-dir|vendor/bin}}/typo3 language:update",
+			},
+			{
+				Name: "Flush caches",
+				Run:  "./{{config.bin-dir|vendor/bin}}/typo3 cache:flush",
+			},
+			{
+				Name: "Warmup caches",
+				Run:  "./{{config.bin-dir|vendor/bin}}/typo3 cache:warmup",
+			},
+		}
+	}
 }
 
 // GetComposerPath returns the resolved composer.json path

@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"sort"
+
 	"github.com/spf13/cobra"
 	"shippy/internal/composer"
 	"shippy/internal/config"
@@ -27,10 +29,12 @@ The deployment process:
 7. Cleans up old releases (keeps last N releases)
 
 Example:
+  shippy deploy                  (interactive host selection)
   shippy deploy staging
   shippy deploy production`,
-	Args: cobra.ExactArgs(1),
-	RunE: runDeploy,
+	Args:         cobra.MaximumNArgs(1),
+	RunE:         runDeploy,
+	SilenceUsage: true, // Don't show usage on errors
 }
 
 func init() {
@@ -39,7 +43,6 @@ func init() {
 }
 
 func runDeploy(cmd *cobra.Command, args []string) error {
-	hostName := args[0]
 	out := ui.New()
 
 	// Load config
@@ -54,6 +57,27 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 	if err := cfg.Validate(); err != nil {
 		out.Error("Config validation failed: %v", err)
 		return err
+	}
+
+	// Determine host: from args or interactive selection
+	var hostName string
+	if len(args) > 0 {
+		hostName = args[0]
+	} else {
+		// Get available hosts sorted alphabetically
+		hosts := make([]string, 0, len(cfg.Hosts))
+		for name := range cfg.Hosts {
+			hosts = append(hosts, name)
+		}
+		sort.Strings(hosts)
+
+		// Prompt for selection
+		selected, err := out.SelectHost(hosts)
+		if err != nil {
+			out.Error("Host selection failed: %v", err)
+			return err
+		}
+		hostName = selected
 	}
 
 	// Load composer.json using configured path
