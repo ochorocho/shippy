@@ -6,6 +6,10 @@ on:
     types:
       - completed
 
+permissions:
+  actions: read
+  contents: read
+
 jobs:
   test-tinnie:
     name: "Test Tinnie on Linux amd64"
