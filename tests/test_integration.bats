@@ -26,8 +26,8 @@ setup() {
   bats_load_library bats-file
   bats_load_library bats-support
 
-  run docker compose -f "${BATS_TEST_DIRNAME}/docker-compose.yaml" up -d --build
   run rm -rf "${DEPLOYMENT_TARGET}/*" "${DEPLOYMENT_TARGET}/.cache"
+  run docker compose -f "${BATS_TEST_DIRNAME}/docker-compose.yaml" up -d --build
   assert_success
 }
 

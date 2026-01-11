@@ -11,6 +11,11 @@ services:
       - ./www:/var/www/html:rw
     depends_on:
       - typo3-tinnie-mariadb
+    healthcheck:
+      test: ["CMD", "sh", "-c", "ss -ltn | grep ':22' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
   typo3-tinnie-mariadb:
     image: mariadb:10.11
     environment:
