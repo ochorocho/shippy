@@ -1,0 +1,11 @@
+{
+  "name": "test/shippy-project",
+  "description": "Test TYPO3 project for Shippy config tests",
+  "type": "project",
+  "require": {
+    "typo3/cms-core": "^12.0"
+  },
+  "config": {
+    "bin-dir": "vendor/bin"
+  }
+}

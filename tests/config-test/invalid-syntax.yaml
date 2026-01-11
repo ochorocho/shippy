@@ -1,0 +1,9 @@
+# Invalid YAML syntax for testing error handling
+hosts:
+  production:
+    hostname: example.com
+    remote_user: deploy
+    deploy_path: /var/www
+    # Invalid indentation below
+  port: 22
+    invalid_key

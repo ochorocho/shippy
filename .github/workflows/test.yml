@@ -42,6 +42,9 @@ jobs:
         id: setup-bats
         uses: bats-core/bats-action@3.0.1
 
-      - name: Test Tinnie
+      - name: Run Tests (Serial Execution)
         shell: bash
-        run: bats tests/test.bats
+        run: |
+          # IMPORTANT: Tests must run serially - DO NOT use --jobs flag
+          # Tests share Docker resources and will conflict if run in parallel
+          bats tests/

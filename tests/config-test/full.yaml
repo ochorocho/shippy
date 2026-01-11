@@ -1,0 +1,48 @@
+# Full configuration with all options for testing
+composer: composer.json
+rsync_src: ./
+keep_releases: 10
+lock_enabled: true
+lock_timeout: 20
+
+exclude:
+  - "**/*.md"
+  - "**/*.rst"
+  - "**/.git/"
+  - "**/node_modules/"
+
+include:
+  - "public/.htaccess"
+  - "public/robots.txt"
+
+shared:
+  - .env
+  - var/log/
+  - var/session/
+  - public/fileadmin/
+  - public/uploads/
+
+hosts:
+  production:
+    hostname: 127.0.0.1
+    remote_user: root
+    deploy_path: /var/www/html
+    port: 2424
+    ssh_key: ../ssh_keys/tinnie_key
+    ssh_multiplexing: false
+
+commands:
+  - name: Run extension setup
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 extension:setup
+
+  - name: Run upgrade wizards
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 upgrade:run
+
+  - name: Update language files
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 language:update
+
+  - name: Flush caches
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 cache:flush
+
+  - name: Warmup caches
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 cache:warmup

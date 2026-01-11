@@ -1,0 +1,22 @@
+# Multi-host configuration for testing
+rsync_src: ./
+keep_releases: 5
+
+hosts:
+  production:
+    hostname: prod.example.com
+    remote_user: deploy
+    deploy_path: /var/www/prod
+    port: 22
+
+  staging:
+    hostname: staging.example.com
+    remote_user: deploy
+    deploy_path: /var/www/staging
+    port: 22
+
+  development:
+    hostname: dev.example.com
+    remote_user: deploy
+    deploy_path: /var/www/dev
+    port: 22

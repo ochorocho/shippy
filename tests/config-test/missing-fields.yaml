@@ -1,0 +1,6 @@
+# Missing required fields for testing validation
+hosts:
+  production:
+    # Missing hostname (required)
+    remote_user: deploy
+    deploy_path: /var/www
