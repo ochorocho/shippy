@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"shippy/internal/composer"
+	"tinnie/internal/composer"
 )
 
 var (

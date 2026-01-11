@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 
-# Tests for shippy deploy command (without full integration)
+# Tests for tinnie deploy command (without full integration)
 
 # bats file_tags=quick
 
@@ -13,7 +13,7 @@ setup() {
   load test_helpers
   common_setup
 
-  export TEST_DIR="${BATS_TMPDIR}/shippy-deploy-test"
+  export TEST_DIR="${BATS_TMPDIR}/tinnie-deploy-test"
   mkdir -p "${TEST_DIR}"
   cd "${TEST_DIR}"
   create_test_composer_json
@@ -27,7 +27,7 @@ teardown() {
 @test "Should show help for deploy command" {
   run -0 ${BIN} deploy --help
   assert_success
-  assert_output --partial "Deploy your TYPO3 project to a target host defined in .shippy.yaml"
+  assert_output --partial "Deploy your TYPO3 project to a target host defined in .tinnie.yaml"
   assert_output --partial "deployment process:"
   assert_output --partial "Example:"
 }

@@ -4,10 +4,10 @@ import (
 	"sort"
 
 	"github.com/spf13/cobra"
-	"shippy/internal/composer"
-	"shippy/internal/config"
-	"shippy/internal/deploy"
-	"shippy/internal/ui"
+	"tinnie/internal/composer"
+	"tinnie/internal/config"
+	"tinnie/internal/deploy"
+	"tinnie/internal/ui"
 )
 
 var (
@@ -17,7 +17,7 @@ var (
 var deployCmd = &cobra.Command{
 	Use:   "deploy [host]",
 	Short: "Deploy to a target host",
-	Long: `Deploy your TYPO3 project to a target host defined in .shippy.yaml.
+	Long: `Deploy your TYPO3 project to a target host defined in .tinnie.yaml.
 
 The deployment process:
 1. Scans files based on .gitignore and exclude patterns
@@ -29,9 +29,9 @@ The deployment process:
 7. Cleans up old releases (keeps last N releases)
 
 Example:
-  shippy deploy                  (interactive host selection)
-  shippy deploy staging
-  shippy deploy production`,
+  tinnie deploy                  (interactive host selection)
+  tinnie deploy staging
+  tinnie deploy production`,
 	Args:         cobra.MaximumNArgs(1),
 	RunE:         runDeploy,
 	SilenceUsage: true, // Don't show usage on errors

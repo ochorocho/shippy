@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   test-tinnie:
-    name: "Test Tinnie on Linux amd64"
+    name: "Test on Linux amd64"
     runs-on: ubuntu-24.04
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     env:

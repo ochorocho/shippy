@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"shippy/internal/composer"
-	"shippy/internal/config"
-	"shippy/internal/ui"
+	"tinnie/internal/composer"
+	"tinnie/internal/config"
+	"tinnie/internal/ui"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -32,8 +32,8 @@ If a host is specified, shows the effective configuration for that host
 including global settings and per-host overrides.
 
 Examples:
-  shippy config show              # Show complete config
-  shippy config show production   # Show config for production host`,
+  tinnie config show              # Show complete config
+  tinnie config show production   # Show config for production host`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runShow,
 }

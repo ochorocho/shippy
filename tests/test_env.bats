@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 
-# Tests for shippy env command
+# Tests for tinnie env command
 
 # bats file_tags=quick
 
@@ -47,8 +47,8 @@ setup() {
 }
 
 @test "Should include custom environment variable" {
-  export SHIPPY_TEST_VAR="test_value"
+  export TINNIE_TEST_VAR="test_value"
   run -0 ${BIN} env
   assert_success
-  assert_output --partial "SHIPPY_TEST_VAR=test_value"
+  assert_output --partial "TINNIE_TEST_VAR=test_value"
 }

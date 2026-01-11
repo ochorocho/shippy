@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"shippy/internal/errors"
+	"tinnie/internal/errors"
 )
 
 // ClientOptions represents SSH client configuration options

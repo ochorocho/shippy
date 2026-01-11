@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"shippy/internal/errors"
-	"shippy/internal/ssh"
-	"shippy/internal/ui"
+	"tinnie/internal/errors"
+	"tinnie/internal/ssh"
+	"tinnie/internal/ui"
 )
 
 // Syncer handles file synchronization over SSH

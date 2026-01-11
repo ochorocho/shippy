@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 
-# Tests for shippy init command
+# Tests for tinnie init command
 
 # bats file_tags=quick
 
@@ -14,7 +14,7 @@ setup() {
   common_setup
 
   # Create test directory for each test
-  export TEST_DIR="${BATS_TMPDIR}/shippy-init-test-${BATS_TEST_NUMBER}"
+  export TEST_DIR="${BATS_TMPDIR}/tinnie-init-test-${BATS_TEST_NUMBER}"
   mkdir -p "${TEST_DIR}"
   cd "${TEST_DIR}"
 }
@@ -24,16 +24,16 @@ teardown() {
   rm -rf "${TEST_DIR}"
 }
 
-@test "Should create .shippy.yaml in empty directory" {
+@test "Should create .tinnie.yaml in empty directory" {
   run -0 ${BIN} init
   assert_success
-  assert_output --partial "Shippy - Initialize Configuration"
-  assert_file_exist ".shippy.yaml"
+  assert_output --partial "Tinnie - Initialize Configuration"
+  assert_file_exist ".tinnie.yaml"
 }
 
-@test "Should warn when .shippy.yaml already exists" {
+@test "Should warn when .tinnie.yaml already exists" {
   # Create initial config
-  echo "hosts:" > .shippy.yaml
+  echo "hosts:" > .tinnie.yaml
 
   run -0 ${BIN} init
   assert_success
@@ -42,26 +42,26 @@ teardown() {
 }
 
 @test "Should overwrite existing config with --force flag" {
-  echo "hosts:" > .shippy.yaml
+  echo "hosts:" > .tinnie.yaml
 
   run -0 ${BIN} init --force
   assert_success
-  assert_file_exist ".shippy.yaml"
+  assert_file_exist ".tinnie.yaml"
 }
 
 @test "Should overwrite existing config with -f flag" {
-  echo "hosts:" > .shippy.yaml
+  echo "hosts:" > .tinnie.yaml
 
   run -0 ${BIN} init -f
   assert_success
-  assert_file_exist ".shippy.yaml"
+  assert_file_exist ".tinnie.yaml"
 }
 
 @test "Should create valid YAML configuration" {
   create_test_composer_json
   run -0 ${BIN} init
   assert_success
-  assert_file_exist ".shippy.yaml"
+  assert_file_exist ".tinnie.yaml"
 
   # Verify the generated config is valid
   run -0 ${BIN} config validate
@@ -71,9 +71,9 @@ teardown() {
 @test "Generated config should contain production host" {
   run -0 ${BIN} init
   assert_success
-  assert_file_exist ".shippy.yaml"
+  assert_file_exist ".tinnie.yaml"
 
-  run cat .shippy.yaml
+  run cat .tinnie.yaml
   assert_output --partial "production:"
   assert_output --partial "hostname:"
   assert_output --partial "remote_user:"
@@ -84,7 +84,7 @@ teardown() {
   run -0 ${BIN} init
   assert_success
 
-  run cat .shippy.yaml
+  run cat .tinnie.yaml
   assert_output --partial "# Optional:"
 }
 
@@ -92,7 +92,7 @@ teardown() {
   run -0 ${BIN} init
   assert_success
 
-  run cat .shippy.yaml
+  run cat .tinnie.yaml
   # Check for commented optional fields
   assert_output --partial "# composer:"
   assert_output --partial "# rsync_src:"
@@ -101,6 +101,6 @@ teardown() {
 @test "Should show help for init command" {
   run -0 ${BIN} init --help
   assert_success
-  assert_output --partial "Initialize a new .shippy.yaml configuration file"
+  assert_output --partial "Initialize a new .tinnie.yaml configuration file"
   assert_output --partial "Example:"
 }

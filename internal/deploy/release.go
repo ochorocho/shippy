@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"shippy/internal/ssh"
+	"tinnie/internal/ssh"
 )
 
 // ReleaseManager manages release directories on the remote server

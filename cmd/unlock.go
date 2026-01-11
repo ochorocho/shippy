@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"shippy/internal/config"
-	"shippy/internal/lock"
-	"shippy/internal/ssh"
-	"shippy/internal/ui"
+	"tinnie/internal/config"
+	"tinnie/internal/lock"
+	"tinnie/internal/ssh"
+	"tinnie/internal/ui"
 )
 
 var unlockCmd = &cobra.Command{
@@ -23,9 +23,9 @@ or when you need to force-unlock a deployment that is stuck.
 WARNING: Using this command while a deployment is in progress may cause issues.
 
 Example:
-  shippy unlock                  (interactive host selection)
-  shippy unlock production
-  shippy unlock staging`,
+  tinnie unlock                  (interactive host selection)
+  tinnie unlock production
+  tinnie unlock staging`,
 	Args:         cobra.MaximumNArgs(1),
 	RunE:         runUnlock,
 	SilenceUsage: true, // Don't show usage on errors

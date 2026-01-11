@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 
-# Full integration tests for shippy deployment
+# Full integration tests for tinnie deployment
 # These tests require Docker and SSH keys
 # IMPORTANT: These tests share Docker resources and must run serially
 

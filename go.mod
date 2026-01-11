@@ -1,4 +1,4 @@
-module shippy
+module tinnie
 
 go 1.24.5
 

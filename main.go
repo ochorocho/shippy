@@ -1,6 +1,6 @@
 package main
 
-import "shippy/cmd"
+import "tinnie/cmd"
 
 func main() {
 	cmd.Execute()

@@ -48,7 +48,7 @@ require_ssh_keys() {
 
 # Create a temporary test directory
 create_test_dir() {
-  local test_dir="${BATS_TMPDIR}/shippy-test-${BATS_TEST_NUMBER}"
+  local test_dir="${BATS_TMPDIR}/tinnie-test-${BATS_TEST_NUMBER}"
   mkdir -p "${test_dir}"
   echo "${test_dir}"
 }
@@ -66,8 +66,8 @@ create_test_composer_json() {
   local target_dir="${1:-.}"
   cat > "${target_dir}/composer.json" <<'EOF'
 {
-  "name": "test/shippy-project",
-  "description": "Test TYPO3 project for Shippy",
+  "name": "test/tinnie-project",
+  "description": "Test TYPO3 project for Tinnie",
   "type": "project",
   "require": {
     "typo3/cms-core": "^13.4"
@@ -79,10 +79,10 @@ create_test_composer_json() {
 EOF
 }
 
-# Create a minimal .shippy.yaml for testing
+# Create a minimal .tinnie.yaml for testing
 create_minimal_config() {
   local target_dir="${1:-.}"
-  cat > "${target_dir}/.shippy.yaml" <<'EOF'
+  cat > "${target_dir}/.tinnie.yaml" <<'EOF'
 hosts:
   production:
     hostname: 127.0.0.1

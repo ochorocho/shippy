@@ -62,9 +62,6 @@ Tests share resources (Docker containers, temporary directories) and **must run 
 ```bash
 # From project root
 bats tests/
-
-# Or using make
-make test
 ```
 
 **⚠️ WARNING: Never use `--jobs` flag - it will cause test conflicts!**
@@ -80,21 +77,13 @@ bats tests/
 ### Quick Tests Only (No Docker Required)
 
 ```bash
-# Fast unit-style tests only
 bats --filter-tags quick tests/
-
-# Or using make
-make test-quick
 ```
 
 ### Integration Tests Only (Requires Docker)
 
 ```bash
-# Full deployment tests with Docker
 bats --filter-tags integration tests/
-
-# Or using make
-make test-integration
 ```
 
 ### Single Test File
@@ -110,9 +99,6 @@ bats tests/test_config.bats
 ```bash
 # Show all output (useful for debugging)
 bats tests/ --show-output-of-passing-tests --verbose-run --print-output-on-failure
-
-# Or using make
-make test-verbose
 ```
 
 ## Test Tags
@@ -180,8 +166,6 @@ test:
 
 Build the binary first:
 ```bash
-make build
-# or
 mkdir -p dist && go build -o dist/tinnie
 ```
 

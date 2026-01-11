@@ -1,4 +1,4 @@
-# Shippy
+# Tinnie
 
 A minimal, opinionated deployment tool for TYPO3 projects, inspired by Deployer and Capistrano.
 
@@ -19,16 +19,16 @@ A minimal, opinionated deployment tool for TYPO3 projects, inspired by Deployer 
 ### From Source
 
 ```bash
-git clone https://github.com/yourusername/shippy.git
-cd shippy
-go build -o shippy
-sudo mv shippy /usr/local/bin/
+git clone https://github.com/yourusername/tinnie.git
+cd tinnie
+go build -o tinnie
+sudo mv tinnie /usr/local/bin/
 ```
 
 ### Using Go Install
 
 ```bash
-go install github.com/yourusername/shippy@latest
+go install github.com/yourusername/tinnie@latest
 ```
 
 ## Quick Start
@@ -36,15 +36,15 @@ go install github.com/yourusername/shippy@latest
 1. **Initialize configuration** in your TYPO3 project root:
 
 ```bash
-shippy init
+tinnie init
 ```
 
-This will create a `.shippy.yaml` file with sensible TYPO3 defaults and read your project name from `composer.json`.
+This will create a `.tinnie.yaml` file with sensible TYPO3 defaults and read your project name from `composer.json`.
 
 2. **Edit configuration** with your server details:
 
 ```bash
-vim .shippy.yaml
+vim .tinnie.yaml
 ```
 
 Update at minimum:
@@ -55,13 +55,13 @@ Update at minimum:
 3. **Validate configuration**:
 
 ```bash
-shippy config validate
+tinnie config validate
 ```
 
 4. **Deploy to production**:
 
 ```bash
-shippy deploy production
+tinnie deploy production
 ```
 
 ## Configuration
@@ -97,7 +97,7 @@ commands:
 
 **Exclude Patterns:**
 
-Shippy automatically respects `.gitignore` patterns **including nested `.gitignore` files in subdirectories**. You can add additional exclude patterns in your configuration:
+Tinnie automatically respects `.gitignore` patterns **including nested `.gitignore` files in subdirectories**. You can add additional exclude patterns in your configuration:
 
 ```yaml
 hosts:
@@ -161,7 +161,7 @@ exclude:
 
 **SSH Key Detection:**
 
-The `ssh_key` field is optional. If not specified, Shippy will automatically try to find your SSH key in these locations (in order):
+The `ssh_key` field is optional. If not specified, Tinnie will automatically try to find your SSH key in these locations (in order):
 1. `~/.ssh/id_ed25519`
 2. `~/.ssh/id_rsa`
 3. `~/.ssh/id_ecdsa`
@@ -240,7 +240,7 @@ shared:
 
 ### Directory Structure
 
-Shippy creates the following structure on the server (following Deployer/Capistrano conventions):
+Tinnie creates the following structure on the server (following Deployer/Capistrano conventions):
 
 ```
 /var/www/myproject/
@@ -266,7 +266,7 @@ Shippy creates the following structure on the server (following Deployer/Capistr
 Create a new configuration file with TYPO3 defaults:
 
 ```bash
-shippy init
+tinnie init
 ```
 
 Options:
@@ -275,7 +275,7 @@ Options:
 This command:
 - Checks for `composer.json` in current directory
 - Reads project name from composer.json
-- Generates `.shippy.yaml` with sensible TYPO3 defaults
+- Generates `.tinnie.yaml` with sensible TYPO3 defaults
 - Protects against accidental overwrites (use `--force` to override)
 
 ### Deploy
@@ -283,14 +283,14 @@ This command:
 Deploy to a target host:
 
 ```bash
-shippy deploy <hostname>
+tinnie deploy <hostname>
 ```
 
 Example:
 
 ```bash
-shippy deploy staging
-shippy deploy production
+tinnie deploy staging
+tinnie deploy production
 ```
 
 ### Validate Configuration
@@ -298,7 +298,7 @@ shippy deploy production
 Check if your configuration is valid:
 
 ```bash
-shippy config validate
+tinnie config validate
 ```
 
 This command:
@@ -309,7 +309,7 @@ This command:
 
 ## Deployment Process
 
-When you run `shippy deploy <host>`, the following steps occur:
+When you run `tinnie deploy <host>`, the following steps occur:
 
 1. **Scan files** - Walks source directory, respects .gitignore and exclude patterns
 2. **Connect to server** - Establishes SSH connection
@@ -410,12 +410,12 @@ commands:
 
 ## Default Excludes
 
-Shippy automatically excludes these patterns (in addition to .gitignore):
+Tinnie automatically excludes these patterns (in addition to .gitignore):
 
 - `.git/`
 - `.gitignore`
-- `.shippy.yaml`
-- `.shippy.yaml.example`
+- `.tinnie.yaml`
+- `.tinnie.yaml.example`
 - `node_modules/`
 - `.env.local`
 - `.env.*.local`
@@ -434,7 +434,7 @@ Shippy automatically excludes these patterns (in addition to .gitignore):
 ## Project Structure
 
 ```
-shippy/
+tinnie/
 ├── cmd/
 │   ├── root.go          # Root CLI command
 │   ├── config.go        # Config validation command
@@ -461,7 +461,7 @@ shippy/
 
 ## Testing
 
-go 1.24: `go build -o shippy `
+go 1.24: `go build -o tinnie `
 
 Test instance
 
@@ -478,7 +478,7 @@ composer install
 Deploy
 
 ```bash
-../../shippy deploy production
+../../tinnie deploy production
 ```
 
 Test SSH Connection

@@ -6,20 +6,20 @@ import (
 	"sort"
 
 	"github.com/spf13/cobra"
-	"shippy/internal/ui"
+	"tinnie/internal/ui"
 )
 
 var envCmd = &cobra.Command{
 	Use:   "env",
 	Short: "Print all environment variables",
-	Long: `Print all environment variables available to Shippy.
+	Long: `Print all environment variables available to Tinnie.
 
 This is useful for debugging configuration that uses environment variable
 substitution with the ${ENV_VAR} syntax.
 
 Example:
-  shippy env
-  shippy env | grep DEPLOY`,
+  tinnie env
+  tinnie env | grep DEPLOY`,
 	RunE: runEnv,
 }
 

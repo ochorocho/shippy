@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 
-# Tests for shippy config command
+# Tests for tinnie config command
 
 # bats file_tags=quick
 
@@ -14,7 +14,7 @@ setup() {
   common_setup
 
   # Set up test directory with composer.json for validation tests
-  export TEST_DIR="${BATS_TMPDIR}/shippy-config-test"
+  export TEST_DIR="${BATS_TMPDIR}/tinnie-config-test"
   mkdir -p "${TEST_DIR}"
   cd "${TEST_DIR}"
   create_test_composer_json
