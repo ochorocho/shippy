@@ -31,21 +31,25 @@ func New() *Output {
 
 // Success prints a success message with checkmark
 func (o *Output) Success(format string, args ...interface{}) {
+	// #nosec G104 -- Printf errors in UI output can be safely ignored
 	o.Green.Printf("✓ "+format+"\n", args...)
 }
 
 // Error prints an error message with X mark
 func (o *Output) Error(format string, args ...interface{}) {
+	// #nosec G104 -- Printf errors in UI output can be safely ignored
 	o.Red.Printf("✗ "+format+"\n", args...)
 }
 
 // Info prints an informational message
 func (o *Output) Info(format string, args ...interface{}) {
+	// #nosec G104 -- Printf errors in UI output can be safely ignored
 	o.Yellow.Printf(format+"\n", args...)
 }
 
 // Step prints a step header with arrow
 func (o *Output) Step(format string, args ...interface{}) {
+	// #nosec G104 -- Printf errors in UI output can be safely ignored
 	o.Cyan.Printf("→ "+format+"\n", args...)
 }
 
@@ -53,6 +57,7 @@ func (o *Output) Step(format string, args ...interface{}) {
 func (o *Output) StepNumber(n int, format string, args ...interface{}) {
 	fmt.Println()
 	msg := fmt.Sprintf(format, args...)
+	// #nosec G104 -- Printf errors in UI output can be safely ignored
 	o.Blue.Printf("Step %d: %s\n", n, msg)
 	fmt.Println()
 }
@@ -60,8 +65,11 @@ func (o *Output) StepNumber(n int, format string, args ...interface{}) {
 // Header prints a decorative header box
 func (o *Output) Header(title string) {
 	fmt.Println()
+	// #nosec G104 -- Printf errors in UI output can be safely ignored
 	o.Blue.Println("╔═══════════════════════════════════════════════════════════╗")
+	// #nosec G104 -- Printf errors in UI output can be safely ignored
 	o.Blue.Printf("║  %-57s║\n", title)
+	// #nosec G104 -- Printf errors in UI output can be safely ignored
 	o.Blue.Println("╚═══════════════════════════════════════════════════════════╝")
 	fmt.Println()
 }
@@ -69,8 +77,11 @@ func (o *Output) Header(title string) {
 // HeaderGreen prints a decorative success header box
 func (o *Output) HeaderGreen(title string) {
 	fmt.Println()
+	// #nosec G104 -- Printf errors in UI output can be safely ignored
 	o.Green.Println("╔═══════════════════════════════════════════════════════════╗")
+	// #nosec G104 -- Printf errors in UI output can be safely ignored
 	o.Green.Printf("║  %-57s║\n", title)
+	// #nosec G104 -- Printf errors in UI output can be safely ignored
 	o.Green.Println("╚═══════════════════════════════════════════════════════════╝")
 	fmt.Println()
 }
@@ -102,6 +113,7 @@ func (o *Output) ProgressBar(current, total int, currentItem string, barWidth, m
 func (o *Output) PrintProgressBar(current, total int, currentItem string) {
 	bar := o.ProgressBar(current, total, currentItem, 40, 50)
 	fmt.Print("\r")
+	// #nosec G104 -- Printf errors in UI output can be safely ignored
 	o.Cyan.Print(bar)
 	fmt.Print(strings.Repeat(" ", 10)) // Clear remaining chars
 }

@@ -118,7 +118,10 @@ func runValidate(cmd *cobra.Command, args []string) error {
 			fmt.Printf("    SSH key: %s\n", host.SSHKey)
 		}
 		if len(host.SSHOptions) > 0 {
-			fmt.Printf("    SSH options: %d configured\n", len(host.SSHOptions))
+			fmt.Printf("    SSH options:\n")
+			for key, value := range host.SSHOptions {
+				fmt.Printf("      • %s: %s\n", key, value)
+			}
 		}
 		if len(host.Exclude) > 0 {
 			fmt.Printf("    Excludes: %d patterns\n", len(host.Exclude))
@@ -229,6 +232,12 @@ func buildResolvedHostConfig(cfg *config.Config, host *config.Host, hostName str
 	}
 	if host.SSHMultiplexing {
 		sb.WriteString(fmt.Sprintf("ssh_multiplexing: %t\n", host.SSHMultiplexing))
+	}
+	if len(host.SSHOptions) > 0 {
+		sb.WriteString("ssh_options:\n")
+		for key, value := range host.SSHOptions {
+			sb.WriteString(fmt.Sprintf("  %s: %s\n", key, value))
+		}
 	}
 
 	// Commands

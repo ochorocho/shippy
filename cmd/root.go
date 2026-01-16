@@ -22,6 +22,7 @@ var rootCmd = &cobra.Command{
 			runVersion(cmd, args)
 			return
 		}
+		// #nosec G104 -- Help() errors can be safely ignored
 		cmd.Help()
 	},
 }

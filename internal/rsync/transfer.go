@@ -33,6 +33,7 @@ func (s *Syncer) Sync(files []FileInfo) error {
 	out := ui.New()
 
 	fmt.Printf("\n")
+	// #nosec G104 -- Printf errors in UI output can be safely ignored
 	out.Blue.Printf("→ Analyzing %d files for synchronization\n", len(files))
 
 	// Use remote .cache directory as intermediate upload target
@@ -102,6 +103,7 @@ func (s *Syncer) Sync(files []FileInfo) error {
 	// Delete files from cache that no longer exist locally
 	if len(filesToDelete) > 0 {
 		fmt.Printf("\n")
+		// #nosec G104 -- Printf errors in UI output can be safely ignored
 		out.Blue.Printf("→ Removing %d deleted files from cache\n", len(filesToDelete))
 
 		deleted := 0
@@ -109,6 +111,7 @@ func (s *Syncer) Sync(files []FileInfo) error {
 			remoteCachePath := filepath.Join(cachePath, fileToDelete)
 
 			if s.verbose {
+				// #nosec G104 -- Printf errors in UI output can be safely ignored
 				out.Yellow.Printf("  Deleting: %s\n", fileToDelete)
 			}
 
@@ -178,7 +181,9 @@ func (s *Syncer) getRemoteFileIndex(cachePath string) (map[string]RemoteFileInfo
 		path := strings.TrimPrefix(parts[0], "./")
 
 		var size, mtime int64
+		// #nosec G104 -- Sscanf errors are acceptable here, defaults to 0
 		fmt.Sscanf(parts[1], "%d", &size)
+		// #nosec G104 -- Sscanf errors are acceptable here, defaults to 0
 		fmt.Sscanf(parts[2], "%d", &mtime)
 
 		index[path] = RemoteFileInfo{
@@ -198,6 +203,7 @@ func (s *Syncer) uploadWithProgress(filesToUpload []FileInfo, cachePath string, 
 	}
 
 	fmt.Printf("\n")
+	// #nosec G104 -- Printf errors in UI output can be safely ignored
 	out.Blue.Printf("→ Uploading %d changed/new files to cache\n", len(filesToUpload))
 	fmt.Printf("\n")
 
@@ -209,6 +215,7 @@ func (s *Syncer) uploadWithProgress(filesToUpload []FileInfo, cachePath string, 
 
 		if s.verbose {
 			// Verbose mode: show each file
+			// #nosec G104 -- Printf errors in UI output can be safely ignored
 			out.Yellow.Printf("  [%d/%d] Uploading: %s\n", i+1, len(filesToUpload), file.RelPath)
 		} else {
 			// Progress bar mode: show progress with current file

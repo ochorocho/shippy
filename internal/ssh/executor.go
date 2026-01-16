@@ -30,12 +30,15 @@ func (e *Executor) Execute(commands []Command, workDir string) error {
 	out := ui.New()
 
 	fmt.Printf("\n")
+	// #nosec G104 -- Printf errors in UI output can be safely ignored
 	out.Cyan.Printf("→ Executing %d commands on remote server\n", len(commands))
 	fmt.Printf("\n")
 
 	for i, cmd := range commands {
 		// Print command header
+		// #nosec G104 -- Printf errors in UI output can be safely ignored
 		out.Cyan.Printf("  [%d/%d] %s\n", i+1, len(commands), cmd.Name)
+		// #nosec G104 -- Printf errors in UI output can be safely ignored
 		out.Yellow.Printf("  $ %s\n", cmd.Run)
 		fmt.Printf("\n")
 

@@ -2,7 +2,7 @@ package rsync
 
 import (
 	"bufio"
-	"crypto/md5"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
@@ -81,6 +81,7 @@ func (s *Scanner) loadGitignoreFromDir(dir string) error {
 	gitignorePath := filepath.Join(dir, ".gitignore")
 	var patterns []gitignore.Pattern
 
+	// #nosec G304 -- gitignorePath is constructed from scanned directory within project
 	file, err := os.Open(gitignorePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -237,15 +238,16 @@ func (s *Scanner) shouldInclude(relPath string, isDir bool) bool {
 	return true
 }
 
-// calculateChecksum calculates MD5 checksum of a file
+// calculateChecksum calculates SHA256 checksum of a file
 func calculateChecksum(path string) (string, error) {
+	// #nosec G304 -- Path comes from scanned local files within project directory
 	file, err := os.Open(path)
 	if err != nil {
 		return "", err
 	}
 	defer file.Close()
 
-	hash := md5.New()
+	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {
 		return "", err
 	}

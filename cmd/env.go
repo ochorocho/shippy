@@ -35,15 +35,19 @@ func runEnv(cmd *cobra.Command, args []string) error {
 	sort.Strings(environ)
 
 	fmt.Printf("\n")
+	// #nosec G104 -- Printf errors in UI output can be safely ignored
 	out.Cyan.Println("Environment Variables")
+	// #nosec G104 -- Printf errors in UI output can be safely ignored
 	out.Cyan.Println("=====================")
 	fmt.Printf("\n")
 
 	for _, env := range environ {
+		// #nosec G104 -- Printf errors in UI output can be safely ignored
 		out.Yellow.Println(env)
 	}
 
 	fmt.Printf("\n")
+	// #nosec G104 -- Printf errors in UI output can be safely ignored
 	out.Cyan.Printf("Total: %d variables\n", len(environ))
 	fmt.Printf("\n")
 

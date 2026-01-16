@@ -19,6 +19,8 @@ hosts:
     deploy_path: /var/www/html
     ssh_key: ../ssh_keys/tinnie_key
     ssh_multiplexing: false
+    ssh_options:
+      StrictHostKeyChecking: ${HOST_KEY_CHECKING|accept-new}
 
   staging:
     hostname: 127.0.0.1

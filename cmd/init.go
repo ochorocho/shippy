@@ -53,6 +53,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	configContent := generateMinimalConfig()
 
+	// #nosec G306 -- Config file permissions 0644 are intentional for user readability
 	if err := os.WriteFile(cfgFile, []byte(configContent), 0644); err != nil {
 		out.Error("Failed to write config file: %v", err)
 		return err

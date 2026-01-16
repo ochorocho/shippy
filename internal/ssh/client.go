@@ -14,12 +14,14 @@ import (
 
 // ClientOptions represents SSH client configuration options
 type ClientOptions struct {
-	Host            string
-	Port            int
-	User            string
-	KeyPath         string
-	SSHOptions      map[string]string
-	SSHMultiplexing bool
+	Host               string
+	Port               int
+	User               string
+	KeyPath            string
+	SSHOptions         map[string]string
+	SSHMultiplexing    bool
+	KnownHostsFile     string
+	HostKeyFingerprint string
 }
 
 // Client represents an SSH client connection
@@ -87,6 +89,11 @@ func NewClientWithOptions(opts ClientOptions) (*Client, error) {
 		keyPath = filepath.Join(home, keyPath[2:])
 	}
 
+	// Validate key path to prevent directory traversal
+	if err := validateSSHKeyPath(keyPath); err != nil {
+		return nil, fmt.Errorf("invalid SSH key path: %w", err)
+	}
+
 	// Check if key exists
 	if _, err := os.Stat(keyPath); err != nil {
 		if os.IsNotExist(err) {
@@ -96,6 +103,7 @@ func NewClientWithOptions(opts ClientOptions) (*Client, error) {
 	}
 
 	// Read private key
+	// #nosec G304 -- Path is validated above with validateSSHKeyPath
 	key, err := os.ReadFile(keyPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read SSH key from '%s': %w", keyPath, err)
@@ -107,12 +115,30 @@ func NewClientWithOptions(opts ClientOptions) (*Client, error) {
 		return nil, fmt.Errorf("failed to parse SSH key from '%s': %w (make sure this is a private key, not a .pub file)", keyPath, err)
 	}
 
+	// Extract UserKnownHostsFile from ssh_options if specified
+	if opts.KnownHostsFile == "" && opts.SSHOptions != nil {
+		if userKnownHosts, ok := opts.SSHOptions["UserKnownHostsFile"]; ok {
+			opts.KnownHostsFile = userKnownHosts
+		}
+	}
+
+	// Print SSH connection information
+	fmt.Fprintf(os.Stderr, "  SSH connection details:\n")
+	fmt.Fprintf(os.Stderr, "  • Target: %s@%s:%d\n", opts.User, opts.Host, opts.Port)
+	fmt.Fprintf(os.Stderr, "  • SSH key: %s\n", keyPath)
+
+	// Create host key callback with proper verification
+	hostKeyCallback, err := createHostKeyCallback(&opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create host key verification: %w", err)
+	}
+
 	config := &ssh.ClientConfig{
 		User: opts.User,
 		Auth: []ssh.AuthMethod{
 			ssh.PublicKeys(signer),
 		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO: Make this configurable via ssh_options
+		HostKeyCallback: hostKeyCallback,
 	}
 
 	// Apply SSH options to config
@@ -197,7 +223,13 @@ func (c *Client) RunCommandWithOutput(cmd string, stdout, stderr io.Writer) erro
 
 // UploadFile uploads a file to the remote server
 func (c *Client) UploadFile(localPath, remotePath string, mode os.FileMode) error {
+	// Validate local path to prevent directory traversal
+	if err := validateLocalFilePath(localPath); err != nil {
+		return fmt.Errorf("invalid local file path: %w", err)
+	}
+
 	// Open local file
+	// #nosec G304 -- Path is validated above with validateLocalFilePath
 	file, err := os.Open(localPath)
 	if err != nil {
 		return fmt.Errorf("failed to open local file: %w", err)

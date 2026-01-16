@@ -14,6 +14,7 @@ type Composer struct {
 
 // Parse reads and parses a composer.json file
 func Parse(path string) (*Composer, error) {
+	// #nosec G304 -- Composer path comes from config or project root
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read composer.json: %w", err)

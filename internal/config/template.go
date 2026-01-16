@@ -157,6 +157,7 @@ func replaceTemplateVars(input string, comp *composer.Composer) (string, error) 
 			return match // Return original if error
 		}
 
+		// Return environment variable value (even if empty string)
 		return val
 	})
 
