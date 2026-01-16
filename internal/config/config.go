@@ -121,7 +121,7 @@ func (h *Host) IsLockEnabled() bool {
 // GetLockTimeout returns the lock timeout in minutes (default: 15)
 func (h *Host) GetLockTimeout() int {
 	if h.LockTimeout <= 0 {
-		return 15 // Default 15 minutes like Capistrano
+		return DefaultLockTimeoutMinutes // Default like Capistrano
 	}
 	return h.LockTimeout
 }
@@ -169,7 +169,7 @@ func (c *Config) GetKeepReleases(host *Host) int {
 	if c.KeepReleases > 0 {
 		return c.KeepReleases // Global setting
 	}
-	return 5 // Default
+	return DefaultKeepReleases // Default
 }
 
 // IsLockEnabled returns whether locking is enabled (per-host override, global, or default)
@@ -191,7 +191,7 @@ func (c *Config) GetLockTimeout(host *Host) int {
 	if c.LockTimeout > 0 {
 		return c.LockTimeout // Global setting
 	}
-	return 15 // Default 15 minutes
+	return DefaultLockTimeoutMinutes // Default
 }
 
 // ApplyDefaults sets default values for unspecified fields
@@ -201,14 +201,14 @@ func (c *Config) ApplyDefaults() {
 		c.RsyncSrc = "."
 	}
 	if c.KeepReleases == 0 {
-		c.KeepReleases = 5
+		c.KeepReleases = DefaultKeepReleases
 	}
 	if c.LockEnabled == nil {
 		enabled := true
 		c.LockEnabled = &enabled
 	}
 	if c.LockTimeout == 0 {
-		c.LockTimeout = 15
+		c.LockTimeout = DefaultLockTimeoutMinutes
 	}
 
 	// Set default TYPO3 commands if not specified

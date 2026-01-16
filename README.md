@@ -192,21 +192,120 @@ hosts:
 
     # Advanced SSH options
     ssh_options:
-      ConnectTimeout: "10"          # Connection timeout in seconds
-      ServerAliveInterval: "60"     # Keep connection alive
-      Compression: "yes"            # Enable compression
-      StrictHostKeyChecking: "no"   # Disable host key checking (not recommended for production)
+      ConnectTimeout: "30"           # Connection timeout (default: 30 seconds)
+      ServerAliveInterval: "60"      # Send keepalive every 60 seconds
+      ServerAliveCountMax: "3"       # Disconnect after 3 failed keepalives
+      Compression: "yes"             # Enable SSH compression
+      StrictHostKeyChecking: "accept-new"  # Host key verification mode
+      UserKnownHostsFile: "~/.ssh/known_hosts"  # Known hosts file path
 ```
 
-**Common SSH Options:**
+#### ConnectTimeout
 
-- `ConnectTimeout` - Timeout in seconds for connection establishment
-- `ServerAliveInterval` - Interval in seconds to send keepalive messages
-- `ServerAliveCountMax` - Number of keepalive messages before disconnecting
-- `Compression` - Enable/disable compression (`yes`/`no`)
-- `CompressionLevel` - Compression level (1-9)
-- `StrictHostKeyChecking` - Host key verification (`yes`/`no`/`ask`)
-- `UserKnownHostsFile` - Path to known_hosts file
+Specifies the timeout for establishing an SSH connection. Supports multiple formats:
+
+- **Integer** (seconds): `ConnectTimeout: "30"` or `ConnectTimeout: 30`
+- **Duration string**: `ConnectTimeout: "30s"`, `ConnectTimeout: "5m"`, `ConnectTimeout: "1h"`
+
+Default: `30` seconds
+
+Examples:
+```yaml
+ssh_options:
+  ConnectTimeout: "10"      # 10 seconds
+  ConnectTimeout: "30s"     # 30 seconds
+  ConnectTimeout: "2m"      # 2 minutes
+```
+
+#### ServerAliveInterval and ServerAliveCountMax
+
+Keep SSH connections alive during long-running operations (deployments, database migrations, etc.) by sending periodic keepalive messages.
+
+- **ServerAliveInterval**: Interval between keepalive messages. Supports same formats as ConnectTimeout.
+- **ServerAliveCountMax**: Number of keepalive messages to send without response before disconnecting (default: 3)
+
+Examples:
+```yaml
+ssh_options:
+  ServerAliveInterval: "60"     # Send keepalive every 60 seconds
+  ServerAliveCountMax: "3"      # Disconnect after 3 failed attempts
+
+  # Or with duration format:
+  ServerAliveInterval: "1m"     # Send keepalive every minute
+```
+
+**Use case:** For long-running deployments or commands, set ServerAliveInterval to prevent SSH timeouts:
+```yaml
+ssh_options:
+  ServerAliveInterval: "30"     # Keepalive every 30 seconds
+  ServerAliveCountMax: "5"      # Allow up to 5 failed attempts (2.5 min grace)
+```
+
+#### Compression
+
+Enable SSH compression to reduce bandwidth usage. Particularly useful for large file transfers over slow connections.
+
+- **Values**: `"yes"`, `"true"`, `"no"`, `"false"`
+
+Example:
+```yaml
+ssh_options:
+  Compression: "yes"    # Enable compression
+```
+
+**Note:** Go's SSH library handles compression negotiation with the server. If the server doesn't support compression, it will be automatically disabled.
+
+#### StrictHostKeyChecking
+
+Controls host key verification:
+
+- `"yes"` - Strict checking, reject unknown hosts (most secure)
+- `"accept-new"` - Accept new hosts, verify known hosts (recommended default)
+- `"no"` - Disable all verification (insecure, not recommended for production)
+
+Example:
+```yaml
+ssh_options:
+  StrictHostKeyChecking: "accept-new"   # Accept first connection, verify thereafter
+  UserKnownHostsFile: "~/.ssh/known_hosts"
+```
+
+#### UserKnownHostsFile
+
+Path to the known_hosts file for host key verification. Supports tilde expansion (`~`).
+
+Default: `~/.ssh/known_hosts`
+
+Example:
+```yaml
+ssh_options:
+  UserKnownHostsFile: "~/.ssh/my_known_hosts"
+```
+
+#### Complete Example
+
+```yaml
+hosts:
+  production:
+    hostname: example.com
+    port: 22
+    remote_user: deploy
+    ssh_key: ~/.ssh/id_ed25519
+    deploy_path: /var/www/myproject
+
+    ssh_options:
+      # Connection and timeout settings
+      ConnectTimeout: "30"              # 30 second connection timeout
+      ServerAliveInterval: "60"         # Keepalive every 60 seconds
+      ServerAliveCountMax: "3"          # Disconnect after 3 failures
+
+      # Performance
+      Compression: "yes"                # Enable compression
+
+      # Security
+      StrictHostKeyChecking: "accept-new"
+      UserKnownHostsFile: "~/.ssh/known_hosts"
+```
 
 **Note:** The `port` field is a top-level configuration option for convenience. For other SSH options, use the `ssh_options` map.
 

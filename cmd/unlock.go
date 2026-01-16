@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"tinnie/internal/config"
 	"tinnie/internal/lock"
 	"tinnie/internal/ssh"
 	"tinnie/internal/ui"
@@ -82,7 +83,7 @@ func runUnlock(cmd *cobra.Command, args []string) error {
 	out.Success("Connected to %s@%s", host.RemoteUser, host.Hostname)
 
 	// Check lock status
-	locker := lock.NewLocker(client, host.DeployPath, 15*time.Minute)
+	locker := lock.NewLocker(client, host.DeployPath, time.Duration(config.DefaultLockTimeoutMinutes)*time.Minute)
 	locked, info, err := locker.IsLocked()
 	if err != nil {
 		out.Error("Failed to check lock status: %v", err)

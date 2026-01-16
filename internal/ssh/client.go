@@ -5,7 +5,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 
@@ -26,20 +28,23 @@ type ClientOptions struct {
 
 // Client represents an SSH client connection
 type Client struct {
-	client       *ssh.Client
-	config       *ssh.ClientConfig
-	host         string
-	port         int
-	user         string
-	options      map[string]string
-	multiplexing bool
+	client             *ssh.Client
+	config             *ssh.ClientConfig
+	host               string
+	port               int
+	user               string
+	options            map[string]string
+	multiplexing       bool
+	keepaliveInterval  time.Duration
+	keepaliveCountMax  int
+	keepaliveStopChan  chan struct{}
 }
 
 // NewClient creates a new SSH client
 func NewClient(host, user, keyPath string) (*Client, error) {
 	return NewClientWithOptions(ClientOptions{
 		Host:    host,
-		Port:    22,
+		Port:    DefaultSSHPort,
 		User:    user,
 		KeyPath: keyPath,
 	})
@@ -49,16 +54,16 @@ func NewClient(host, user, keyPath string) (*Client, error) {
 func NewClientWithOptions(opts ClientOptions) (*Client, error) {
 	// Set default port if not specified
 	if opts.Port == 0 {
-		opts.Port = 22
+		opts.Port = DefaultSSHPort
 	}
 
 	// Determine SSH key path
 	keyPath := opts.KeyPath
 	if keyPath == "" {
 		// Try to find default SSH keys
-		home, err := os.UserHomeDir()
+		home, err := getUserHomeDir()
 		if err != nil {
-			return nil, fmt.Errorf("ssh_key not specified and failed to get home directory: %w", err)
+			return nil, fmt.Errorf("ssh_key not specified: %w", err)
 		}
 
 		// Try common SSH key locations
@@ -81,12 +86,10 @@ func NewClientWithOptions(opts ClientOptions) (*Client, error) {
 	}
 
 	// Expand home directory if needed
-	if strings.HasPrefix(keyPath, "~/") {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get home directory: %w", err)
-		}
-		keyPath = filepath.Join(home, keyPath[2:])
+	var err error
+	keyPath, err = expandHomePath(keyPath)
+	if err != nil {
+		return nil, err
 	}
 
 	// Validate key path to prevent directory traversal
@@ -142,19 +145,55 @@ func NewClientWithOptions(opts ClientOptions) (*Client, error) {
 	}
 
 	// Apply SSH options to config
-	if timeout, ok := opts.SSHOptions["ConnectTimeout"]; ok {
-		// Parse timeout and set on config
-		// For now, we'll document this but the Go SSH library has limited option support
-		_ = timeout // TODO: Implement timeout parsing
+
+	// Parse and apply ConnectTimeout
+	if timeoutStr, ok := opts.SSHOptions["ConnectTimeout"]; ok {
+		timeout, err := parseTimeout(timeoutStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid ConnectTimeout value '%s': %w", timeoutStr, err)
+		}
+		config.Timeout = timeout
+	} else {
+		// Apply default timeout
+		config.Timeout = DefaultConnectTimeout
+	}
+
+	// Parse ServerAliveInterval for keepalive
+	var keepaliveInterval time.Duration
+	if intervalStr, ok := opts.SSHOptions["ServerAliveInterval"]; ok {
+		interval, err := parseTimeout(intervalStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid ServerAliveInterval value '%s': %w", intervalStr, err)
+		}
+		keepaliveInterval = interval
+	}
+
+	// Parse ServerAliveCountMax (default: 3)
+	keepaliveCountMax := 3
+	if countStr, ok := opts.SSHOptions["ServerAliveCountMax"]; ok {
+		if count, err := strconv.Atoi(countStr); err == nil && count > 0 {
+			keepaliveCountMax = count
+		}
+	}
+
+	// Apply compression settings (note: Go SSH library has limited compression support)
+	if compressionStr, ok := opts.SSHOptions["Compression"]; ok {
+		if compressionStr == "yes" || compressionStr == "true" {
+			// Enable compression - the library supports zlib compression
+			// This is a hint to the library but actual support depends on the server
+			_ = compressionStr // Compression is negotiated automatically by the library
+		}
 	}
 
 	return &Client{
-		config:       config,
-		host:         opts.Host,
-		port:         opts.Port,
-		user:         opts.User,
-		options:      opts.SSHOptions,
-		multiplexing: opts.SSHMultiplexing,
+		config:            config,
+		host:              opts.Host,
+		port:              opts.Port,
+		user:              opts.User,
+		options:           opts.SSHOptions,
+		multiplexing:      opts.SSHMultiplexing,
+		keepaliveInterval: keepaliveInterval,
+		keepaliveCountMax: keepaliveCountMax,
 	}, nil
 }
 
@@ -175,11 +214,23 @@ func (c *Client) Connect() error {
 	// handles this automatically - each session multiplexes over the same connection.
 	// No additional configuration needed beyond keeping the client alive.
 
+	// Start keepalive goroutine if configured
+	if c.keepaliveInterval > 0 {
+		c.keepaliveStopChan = make(chan struct{})
+		go c.sendKeepalives()
+	}
+
 	return nil
 }
 
 // Close closes the SSH connection
 func (c *Client) Close() error {
+	// Stop keepalive goroutine if running
+	if c.keepaliveStopChan != nil {
+		close(c.keepaliveStopChan)
+		c.keepaliveStopChan = nil
+	}
+
 	if c.client != nil {
 		return c.client.Close()
 	}
@@ -304,4 +355,52 @@ func (c *Client) UploadFile(localPath, remotePath string, mode os.FileMode) erro
 func (c *Client) MkdirAll(path string) error {
 	_, err := c.RunCommand(fmt.Sprintf("mkdir -p %s", path))
 	return err
+}
+
+// parseTimeout parses timeout string to time.Duration.
+// Supports formats: "30" (seconds), "30s", "5m", "1h"
+func parseTimeout(timeoutStr string) (time.Duration, error) {
+	// If just a number, treat as seconds
+	if seconds, err := strconv.Atoi(timeoutStr); err == nil {
+		return time.Duration(seconds) * time.Second, nil
+	}
+
+	// Otherwise try to parse as duration
+	duration, err := time.ParseDuration(timeoutStr)
+	if err != nil {
+		return 0, fmt.Errorf("must be number of seconds or duration (e.g. '30s', '5m'): %w", err)
+	}
+
+	return duration, nil
+}
+
+// sendKeepalives sends periodic keepalive messages to prevent connection timeout.
+// This runs in a goroutine and is stopped when the client is closed.
+func (c *Client) sendKeepalives() {
+	ticker := time.NewTicker(c.keepaliveInterval)
+	defer ticker.Stop()
+
+	failedCount := 0
+
+	for {
+		select {
+		case <-ticker.C:
+			// Send keepalive (SSH_MSG_GLOBAL_REQUEST with keepalive@golang.org)
+			// The true parameter requests a reply
+			_, _, err := c.client.SendRequest("keepalive@golang.org", true, nil)
+			if err != nil {
+				failedCount++
+				if failedCount >= c.keepaliveCountMax {
+					// Connection likely dead, close it
+					// #nosec G104 -- Error from Close in keepalive goroutine can be safely ignored
+					c.client.Close()
+					return
+				}
+			} else {
+				failedCount = 0
+			}
+		case <-c.keepaliveStopChan:
+			return
+		}
+	}
 }

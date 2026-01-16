@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"tinnie/internal/config"
 	"tinnie/internal/ssh"
 )
 
@@ -76,7 +77,7 @@ func (r *ReleaseManager) UpdateCurrentSymlink(releasePath string) error {
 // CleanupOldReleases removes old releases, keeping only the specified number
 func (r *ReleaseManager) CleanupOldReleases(keep int) error {
 	if keep <= 0 {
-		keep = 5 // Default to keeping 5 releases
+		keep = config.DefaultKeepReleases // Default
 	}
 
 	releasesPath := filepath.Join(r.deployPath, "releases")

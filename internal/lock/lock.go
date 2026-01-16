@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"tinnie/internal/config"
 	"tinnie/internal/ssh"
 )
 
@@ -30,7 +31,7 @@ type Locker struct {
 // NewLocker creates a new deployment locker
 func NewLocker(client *ssh.Client, deployPath string, timeout time.Duration) *Locker {
 	if timeout == 0 {
-		timeout = 15 * time.Minute // Default 15 minutes like Capistrano
+		timeout = time.Duration(config.DefaultLockTimeoutMinutes) * time.Minute // Default like Capistrano
 	}
 
 	return &Locker{

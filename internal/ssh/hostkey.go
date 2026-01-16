@@ -39,11 +39,11 @@ func createHostKeyCallback(opts *ClientOptions) (ssh.HostKeyCallback, error) {
 	knownHostsFile := opts.KnownHostsFile
 	if knownHostsFile == "" {
 		// Default to ~/.ssh/known_hosts
-		home, err := os.UserHomeDir()
+		var err error
+		knownHostsFile, err = getDefaultKnownHostsFile()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get home directory: %w", err)
+			return nil, err
 		}
-		knownHostsFile = filepath.Join(home, ".ssh", "known_hosts")
 	}
 
 	// Show host key verification info
@@ -61,7 +61,7 @@ func createHostKeyCallback(opts *ClientOptions) (ssh.HostKeyCallback, error) {
 			knownHostsExists = false
 			// Create the .ssh directory if it doesn't exist
 			sshDir := filepath.Dir(knownHostsFile)
-			if err := os.MkdirAll(sshDir, 0700); err != nil {
+			if err := os.MkdirAll(sshDir, DirPermissionsSSH); err != nil {
 				return nil, fmt.Errorf("failed to create .ssh directory: %w", err)
 			}
 		} else {
@@ -165,7 +165,7 @@ func addHostKeyToKnownHosts(hostname string, key ssh.PublicKey, knownHostsFile s
 
 	// Open file in append mode, create if it doesn't exist
 	// #nosec G304 -- knownHostsFile path comes from trusted sources (user config or default ~/.ssh/known_hosts)
-	file, err := os.OpenFile(knownHostsFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	file, err := os.OpenFile(knownHostsFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, FilePermissionsKnownHosts)
 	if err != nil {
 		return err
 	}
