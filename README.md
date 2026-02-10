@@ -2,7 +2,7 @@
 
 A minimal, opinionated deployment tool for TYPO3 projects, inspired by Deployer and Capistrano.
 
-![Shippy](images/logo3.svg)
+![Shippy](images/logo.svg)
 
 ## Features
 

@@ -179,6 +179,60 @@ func (r *ReleaseManager) CreateSharedSymlinks(releasePath string, sharedPaths []
 	return nil
 }
 
+// ReleaseInfo contains information about a release for display purposes
+type ReleaseInfo struct {
+	Name      string           // Directory name (timestamp)
+	Path      string           // Full path on server
+	Metadata  *ReleaseMetadata // Optional metadata (nil if not available)
+	IsCurrent bool             // Whether this is the currently active release
+}
+
+// ListReleases returns all available releases with metadata, sorted newest first
+func (r *ReleaseManager) ListReleases() ([]ReleaseInfo, error) {
+	releasesPath := filepath.Join(r.deployPath, "releases")
+
+	output, err := r.client.RunCommand(fmt.Sprintf("ls -1 %s 2>/dev/null || true", releasesPath))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list releases: %w", err)
+	}
+
+	var names []string
+	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			names = append(names, line)
+		}
+	}
+
+	// Sort newest first
+	sort.Slice(names, func(i, j int) bool {
+		return names[i] > names[j]
+	})
+
+	// Get current release
+	currentRelease, _ := r.GetCurrentRelease()
+	currentName := filepath.Base(currentRelease)
+
+	releases := make([]ReleaseInfo, 0, len(names))
+	for _, name := range names {
+		relPath := filepath.Join(releasesPath, name)
+		info := ReleaseInfo{
+			Name:      name,
+			Path:      relPath,
+			IsCurrent: name == currentName,
+		}
+
+		// Try to read metadata (best-effort)
+		if meta, err := ReadReleaseMetadata(r.client, relPath); err == nil {
+			info.Metadata = meta
+		}
+
+		releases = append(releases, info)
+	}
+
+	return releases, nil
+}
+
 // GetCurrentRelease returns the path of the current release
 func (r *ReleaseManager) GetCurrentRelease() (string, error) {
 	currentPath := filepath.Join(r.deployPath, "current")

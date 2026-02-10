@@ -152,6 +152,13 @@ func (d *Deployer) Deploy() error {
 		return fmt.Errorf("sync failed: %w", err)
 	}
 
+	// Write release metadata (best-effort, non-critical)
+	if err := WriteReleaseMetadata(client, releasePath); err != nil {
+		out.Info("  Could not write release metadata: %v", err)
+	} else {
+		out.Success("Release metadata written")
+	}
+
 	// Step 5: Create shared symlinks
 	sharedItems := d.config.GetShared(d.host)
 	if len(sharedItems) > 0 {

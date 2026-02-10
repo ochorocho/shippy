@@ -40,6 +40,7 @@ setup() {
   assert_output --partial "deploy"
   assert_output --partial "env"
   assert_output --partial "init"
+  assert_output --partial "rollback"
   assert_output --partial "unlock"
 }
 

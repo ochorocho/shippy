@@ -229,6 +229,40 @@ func (o *Output) SelectHost(hosts []string) (string, error) {
 	return m.selected, nil
 }
 
+// SelectRelease prompts the user to select a release from a list using Bubble Tea
+func (o *Output) SelectRelease(releases []ReleaseItem) (*ReleaseItem, error) {
+	if len(releases) == 0 {
+		return nil, fmt.Errorf("no releases available")
+	}
+
+	model := newReleaseSelectorModel(releases)
+	p := tea.NewProgram(
+		model,
+		tea.WithInput(os.Stdin),
+		tea.WithOutput(os.Stderr),
+	)
+
+	finalModel, err := p.Run()
+	if err != nil {
+		return nil, fmt.Errorf("failed to run release selector: %w", err)
+	}
+
+	m, ok := finalModel.(releaseSelectorModel)
+	if !ok {
+		return nil, fmt.Errorf("unexpected model type")
+	}
+
+	if m.quitted {
+		return nil, fmt.Errorf("selection cancelled")
+	}
+
+	if m.selected == nil {
+		return nil, fmt.Errorf("no release selected")
+	}
+
+	return m.selected, nil
+}
+
 func isNumber(s string) bool {
 	for _, c := range s {
 		if c < '0' || c > '9' {
