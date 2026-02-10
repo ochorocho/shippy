@@ -201,6 +201,23 @@ func runRollback(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Execute rollback commands in the release directory
+	if len(cfg.RollbackCommands) > 0 {
+		out.StepNumber(1, "Executing rollback commands")
+
+		executor := ssh.NewExecutor(client)
+
+		commands := make([]ssh.Command, len(cfg.RollbackCommands))
+		for i, cmd := range cfg.RollbackCommands {
+			commands[i] = ssh.Command{Name: cmd.Name, Run: cmd.Run}
+		}
+
+		if err := executor.Execute(commands, selected.Path); err != nil {
+			out.Error("Rollback command execution failed: %v", err)
+			return err
+		}
+	}
+
 	out.HeaderGreen(fmt.Sprintf("Rolled back to %s", selected.Name))
 
 	return nil

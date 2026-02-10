@@ -94,6 +94,21 @@ func (c *Config) ProcessTemplates(comp *composer.Composer) error {
 		}
 	}
 
+	// Process rollback commands
+	for i, cmd := range c.RollbackCommands {
+		var err error
+
+		c.RollbackCommands[i].Name, err = replaceTemplateVars(cmd.Name, comp)
+		if err != nil {
+			return fmt.Errorf("rollback_command[%d].name: %w", i, err)
+		}
+
+		c.RollbackCommands[i].Run, err = replaceTemplateVars(cmd.Run, comp)
+		if err != nil {
+			return fmt.Errorf("rollback_command[%d].run: %w", i, err)
+		}
+	}
+
 	return nil
 }
 

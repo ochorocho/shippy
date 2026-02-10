@@ -95,3 +95,9 @@ teardown() {
   assert_failure
   assert_output --partial "cannot use --release and --offset together"
 }
+
+@test "Should validate full config with rollback commands" {
+  run -0 ${BIN} config validate --config ${BATS_TEST_DIRNAME}/config-test/full.yaml
+  assert_success
+  assert_output --partial "Configured rollback commands"
+}

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"shippy/internal/ui"
 
@@ -31,8 +32,15 @@ var rootCmd = &cobra.Command{
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		// Error already printed by command's out.Error()
-		// Just exit with error code
+		// Cobra's unknown command errors are silenced (SilenceErrors=true).
+		// Print a user-friendly message instead.
+		errMsg := err.Error()
+		if _, after, ok := strings.Cut(errMsg, `unknown command "`); ok {
+			if cmdName, _, ok := strings.Cut(after, `"`); ok {
+				out := ui.New()
+				out.Error("The command %s does not exist!", cmdName)
+			}
+		}
 		os.Exit(1)
 	}
 }

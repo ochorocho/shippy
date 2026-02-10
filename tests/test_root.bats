@@ -47,6 +47,7 @@ setup() {
 @test "Should show error for invalid command" {
   run -1 ${BIN} invalid-command
   assert_failure
+  assert_output --partial "The command invalid-command does not exist!"
 }
 
 @test "Should accept --config flag" {

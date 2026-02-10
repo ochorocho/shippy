@@ -140,6 +140,14 @@ func runValidate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	if len(cfg.RollbackCommands) > 0 {
+		fmt.Printf("Configured rollback commands (%d):\n", len(cfg.RollbackCommands))
+		for i, cmd := range cfg.RollbackCommands {
+			fmt.Printf("  %d. %s\n", i+1, cmd.Name)
+			fmt.Printf("     %s\n", cmd.Run)
+		}
+	}
+
 	return nil
 }
 
@@ -245,6 +253,16 @@ func buildResolvedHostConfig(cfg *config.Config, host *config.Host, hostName str
 		sb.WriteString("\n# Commands\n")
 		sb.WriteString("commands:\n")
 		for _, cmd := range cfg.Commands {
+			sb.WriteString(fmt.Sprintf("  - name: %s\n", cmd.Name))
+			sb.WriteString(fmt.Sprintf("    run: %s\n", cmd.Run))
+		}
+	}
+
+	// Rollback commands
+	if len(cfg.RollbackCommands) > 0 {
+		sb.WriteString("\n# Rollback Commands\n")
+		sb.WriteString("rollback_commands:\n")
+		for _, cmd := range cfg.RollbackCommands {
 			sb.WriteString(fmt.Sprintf("  - name: %s\n", cmd.Name))
 			sb.WriteString(fmt.Sprintf("    run: %s\n", cmd.Run))
 		}

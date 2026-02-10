@@ -46,3 +46,10 @@ commands:
 
   - name: Warmup caches
     run: ./{{config.bin-dir|vendor/bin}}/typo3 cache:warmup
+
+rollback_commands:
+  - name: Flush caches
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 cache:flush
+
+  - name: Warmup caches
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 cache:warmup

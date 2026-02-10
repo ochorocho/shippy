@@ -156,5 +156,16 @@ hosts:
 #
 #   - name: Warmup caches
 #     run: ./vendor/bin/typo3 cache:warmup
+
+# Optional: Commands to run after rollback (executed in the rolled-back release directory)
+# Unlike deploy commands, rollback commands have no defaults — rollback only switches
+# the symlink unless you configure commands here.
+#
+# rollback_commands:
+#   - name: Flush caches
+#     run: ./vendor/bin/typo3 cache:flush
+#
+#   - name: Warmup caches
+#     run: ./vendor/bin/typo3 cache:warmup
 `)
 }

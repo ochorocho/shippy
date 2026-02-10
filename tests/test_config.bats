@@ -129,3 +129,26 @@ teardown() {
   assert_output --partial "Display the complete configuration"
   assert_output --partial "Examples:"
 }
+
+# Rollback commands tests
+
+@test "Should show rollback commands in full config" {
+  run -0 ${BIN} config show --config ${BATS_TEST_DIRNAME}/config-test/full.yaml
+  assert_success
+  assert_output --partial "rollback_commands"
+  assert_output --partial "Flush caches"
+  assert_output --partial "cache:flush"
+}
+
+@test "Should show raw rollback commands with template variables" {
+  run -0 ${BIN} config show --raw --config ${BATS_TEST_DIRNAME}/config-test/full.yaml
+  assert_success
+  assert_output --partial "rollback_commands"
+  assert_output --partial "{{config.bin-dir|vendor/bin}}"
+}
+
+@test "Should not show rollback commands for minimal config" {
+  run -0 ${BIN} config show --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
+  assert_success
+  refute_output --partial "rollback_commands"
+}

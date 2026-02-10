@@ -23,8 +23,9 @@ type Config struct {
 	LockTimeout  int      `yaml:"lock_timeout,omitempty"`
 
 	// Host and command configuration
-	Hosts    map[string]Host `yaml:"hosts"`
-	Commands []Command       `yaml:"commands"`
+	Hosts            map[string]Host `yaml:"hosts"`
+	Commands         []Command       `yaml:"commands"`
+	RollbackCommands []Command       `yaml:"rollback_commands,omitempty"`
 
 	// Internal: path to config file (used for resolving relative paths)
 	configPath string
