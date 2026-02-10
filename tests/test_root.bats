@@ -16,21 +16,21 @@ setup() {
 
 @test "Should show help when run without arguments" {
   run -0 ${BIN}
-  assert_output --partial "Shippy is a minimal, opinionated deployment tool for TYPO3 projects"
+  assert_output --partial "Shippy is a minimal, opinionated deployment tool for Composer based PHP projects"
   assert_output --partial "Usage:"
   assert_output --partial "Available Commands:"
 }
 
 @test "Should show help with --help flag" {
   run -0 ${BIN} --help
-  assert_output --partial "Shippy is a minimal, opinionated deployment tool for TYPO3 projects"
+  assert_output --partial "Shippy is a minimal, opinionated deployment tool for Composer based PHP projects"
   assert_output --partial "Usage:"
   assert_output --partial "Available Commands:"
 }
 
 @test "Should show help with -h flag" {
   run -0 ${BIN} -h
-  assert_output --partial "Shippy is a minimal, opinionated deployment tool for TYPO3 projects"
+  assert_output --partial "Shippy is a minimal, opinionated deployment tool for Composer based PHP projects"
   assert_output --partial "Usage:"
 }
 

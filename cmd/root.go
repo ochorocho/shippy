@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"shippy/internal/ui"
+
 	"github.com/spf13/cobra"
 )
 
@@ -15,7 +17,7 @@ var (
 var rootCmd = &cobra.Command{
 	Use:           "shippy",
 	Short:         "A TYPO3 deployment tool",
-	Long:          `Shippy is a minimal, opinionated deployment tool for TYPO3 projects.`,
+	Long:          `Shippy is a minimal, opinionated deployment tool for Composer based PHP projects.`,
 	SilenceErrors: true, // Commands handle their own error display
 	Run: func(cmd *cobra.Command, args []string) {
 		if showVersion {
@@ -38,6 +40,16 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", ".shippy.yaml", "config file (default is .shippy.yaml)")
 	rootCmd.Flags().BoolVarP(&showVersion, "version", "v", false, "print version information")
+
+	// Custom help function that shows the logo before help text
+	defaultHelp := rootCmd.HelpFunc()
+	rootCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		if cmd == rootCmd {
+			out := ui.New()
+			out.PrintLogo()
+		}
+		defaultHelp(cmd, args)
+	})
 }
 
 // printVersion outputs the version information
