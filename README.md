@@ -1,6 +1,7 @@
 # Shippy
 
-A minimal, opinionated deployment tool for PHP projects, inspired by Deployer and Capistrano.
+A minimal, opinionated deployment tool for Composer
+based PHP projects, inspired by Deployer and Capistrano.
 
 ![Shippy](images/logo.svg)
 
@@ -326,6 +327,35 @@ Access nested values:
 ```yaml
 deploy_path: /var/www/{{extra.typo3/cms.web-dir}}
 ```
+
+Provide a fallback value with `|` (used when the key is not found in composer.json):
+
+```yaml
+commands:
+  - name: Clear cache
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 cache:flush
+```
+
+### Environment Variables
+
+Use `${VAR}` syntax to reference environment variables:
+
+```yaml
+hosts:
+  production:
+    hostname: ${DEPLOY_HOST}
+    remote_user: ${DEPLOY_USER}
+```
+
+Provide a fallback value with `|` (used when the variable is not set):
+
+```yaml
+hosts:
+  production:
+    deploy_path: ${DEPLOY_PATH|/var/www/html}
+```
+
+If an environment variable is not set and no fallback is provided, deployment will fail with an error.
 
 ### Shared Files/Directories
 
