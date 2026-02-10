@@ -60,7 +60,7 @@ jobs:
       - name: Setup Bats and Bats libs
         id: setup-bats
         run: |
-          apt-get update && apt-get install -y bats bats-assert bats-support bats-file
+          sudo apt-get update && sudo apt-get install -y bats bats-assert bats-support bats-file
 
       - name: Run Tests (Serial Execution)
         shell: bash
