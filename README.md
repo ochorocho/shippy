@@ -523,16 +523,23 @@ hosts:
 
 commands:
   - name: Clear TYPO3 cache
-    run: ./vendor/bin/typo3 cache:flush
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 cache:flush
 
   - name: Run extension setup
-    run: ./vendor/bin/typo3 extension:setup
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 extension:setup
 
   - name: Database migrations
-    run: ./vendor/bin/typo3 upgrade:run
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 upgrade:run
 
   - name: Warmup caches
-    run: ./vendor/bin/typo3 cache:warmup
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 cache:warmup
+
+rollback_commands:
+  - name: Flush caches
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 cache:flush
+
+  - name: Warmup caches
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 cache:warmup
 ```
 
 ## Default Excludes
