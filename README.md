@@ -1,6 +1,6 @@
 # Shippy
 
-A minimal, opinionated deployment tool for TYPO3 projects, inspired by Deployer and Capistrano.
+A minimal, opinionated deployment tool for PHP projects, inspired by Deployer and Capistrano.
 
 ![Shippy](images/logo.svg)
 
