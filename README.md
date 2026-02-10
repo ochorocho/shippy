@@ -394,6 +394,32 @@ shippy deploy staging
 shippy deploy production
 ```
 
+### Rollback
+
+Rollback to a previous release:
+
+```bash
+shippy rollback <hostname>
+```
+
+Options:
+- `--list` or `-l` - List available releases and exit
+- `--release` or `-r` - Switch to a specific release by name
+- `--offset` or `-n` - Relative offset from current release (negative = older, positive = newer)
+
+Examples:
+
+```bash
+shippy rollback production              # Interactive release selection
+shippy rollback production -l           # List available releases
+shippy rollback production -n -1        # One version back
+shippy rollback production -n +1        # One version forward (e.g., after accidental rollback)
+shippy rollback production -n -2        # Two versions back
+shippy rollback production -r 20260109120000  # Specific release by name
+```
+
+When run without flags, shows an interactive list of available releases with deployment date/time, git commit hash, and git tag. The current release is marked and cannot be selected.
+
 ### Validate Configuration
 
 Check if your configuration is valid:

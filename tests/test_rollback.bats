@@ -61,3 +61,37 @@ teardown() {
   run ${BIN} rollback production --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
   assert_output --partial "Loading configuration from"
 }
+
+@test "Should show --release flag in help" {
+  run -0 ${BIN} rollback --help
+  assert_success
+  assert_output --partial "--release"
+  assert_output --partial "-r"
+}
+
+@test "Should show --offset flag in help" {
+  run -0 ${BIN} rollback --help
+  assert_success
+  assert_output --partial "--offset"
+  assert_output --partial "-n"
+}
+
+@test "Should show examples with flags in help" {
+  run -0 ${BIN} rollback --help
+  assert_success
+  assert_output --partial "-n -1"
+  assert_output --partial "-r 20260109120000"
+}
+
+@test "Should show --list flag in help" {
+  run -0 ${BIN} rollback --help
+  assert_success
+  assert_output --partial "--list"
+  assert_output --partial "-l"
+}
+
+@test "Should fail when both --release and --offset are provided" {
+  run -1 ${BIN} rollback production --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml -r 20260109120000 -n -1
+  assert_failure
+  assert_output --partial "cannot use --release and --offset together"
+}
