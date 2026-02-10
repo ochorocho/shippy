@@ -59,7 +59,8 @@ jobs:
 
       - name: Setup Bats and Bats libs
         id: setup-bats
-        uses: bats-core/bats-action@3.0.1
+        run: |
+          apt-get update && apt-get install -y bats bats-assert bats-support bats-file
 
       - name: Run Tests (Serial Execution)
         shell: bash
