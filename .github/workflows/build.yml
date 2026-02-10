@@ -45,17 +45,17 @@ jobs:
       - name: Generate checksums
         uses: Solratic/checksum-action@v1
         with:
-          pattern: "dist/tinnie"
+          pattern: "dist/shippy"
           suffix: "checksum"
 
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v5.0.0
         with:
-          name: tinnie-${{ matrix.os }}-${{ matrix.arch }}
-          path: "dist/tinnie"
+          name: shippy-${{ matrix.os }}-${{ matrix.arch }}
+          path: "dist/shippy"
 
       - name: Upload a SHA Artifact
         uses: actions/upload-artifact@v5.0.0
         with:
-          name: tinnie-${{ matrix.os }}-${{ matrix.arch }}-checksum
-          path: "dist/tinnie.checksum"
+          name: shippy-${{ matrix.os }}-${{ matrix.arch }}-checksum
+          path: "dist/shippy.checksum"

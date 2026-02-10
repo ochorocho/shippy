@@ -28,7 +28,7 @@ hosts:
     remote_user: root
     deploy_path: /var/www/html
     port: 2424
-    ssh_key: ../ssh_keys/tinnie_key
+    ssh_key: ../ssh_keys/shippy_key
     ssh_multiplexing: false
 
 commands:

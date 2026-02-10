@@ -4,24 +4,24 @@ import (
 	"fmt"
 	"os"
 
-	"tinnie/internal/ui"
+	"shippy/internal/ui"
 
 	"github.com/spf13/cobra"
 )
 
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Initialize a new Tinnie configuration file",
-	Long: `Initialize a new .tinnie.yaml configuration file with sensible TYPO3 defaults.
+	Short: "Initialize a new Shippy configuration file",
+	Long: `Initialize a new .shippy.yaml configuration file with sensible TYPO3 defaults.
 
 This command will:
 - Check if composer.json exists
 - Read project name from composer.json
-- Generate a minimal .tinnie.yaml with TYPO3-optimized settings
+- Generate a minimal .shippy.yaml with TYPO3-optimized settings
 - Prompt before overwriting existing configuration
 
 Example:
-  tinnie init`,
+  shippy init`,
 	RunE: runInit,
 }
 
@@ -31,20 +31,20 @@ var (
 
 func init() {
 	rootCmd.AddCommand(initCmd)
-	initCmd.Flags().BoolVarP(&force, "force", "f", false, "Overwrite existing .tinnie.yaml file")
+	initCmd.Flags().BoolVarP(&force, "force", "f", false, "Overwrite existing .shippy.yaml file")
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
 	out := ui.New()
 
-	out.Header("Tinnie - Initialize Configuration")
+	out.Header("Shippy - Initialize Configuration")
 
-	// Check if .tinnie.yaml already exists
+	// Check if .shippy.yaml already exists
 	if _, err := os.Stat(cfgFile); err == nil && !force {
 		out.Info("⚠ Configuration file already exists: %s", cfgFile)
 		out.EmptyLine()
 		out.Println("Use --force to overwrite the existing file:")
-		out.Println("  tinnie init --force")
+		out.Println("  shippy init --force")
 		out.EmptyLine()
 		return nil
 	}
@@ -68,17 +68,17 @@ func runInit(cmd *cobra.Command, args []string) error {
 	out.EmptyLine()
 	out.Println("  1. Edit %s with your server details", cfgFile)
 	out.Println("  2. Validate your configuration:")
-	out.Println("     tinnie config validate")
+	out.Println("     shippy config validate")
 	out.Println("  3. Deploy to your server:")
-	out.Println("     tinnie deploy production")
+	out.Println("     shippy deploy production")
 	out.EmptyLine()
 
 	return nil
 }
 
 func generateMinimalConfig() string {
-	return fmt.Sprintf(`# Tinnie - TYPO3 Deployment Configuration
-# Generated with: tinnie init
+	return fmt.Sprintf(`# Shippy - TYPO3 Deployment Configuration
+# Generated with: shippy init
 
 # Optional: Path to composer.json (default: composer.json in current directory)
 # composer: composer.json

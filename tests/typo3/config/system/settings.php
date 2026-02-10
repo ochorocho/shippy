@@ -18,7 +18,7 @@ return [
                     'collation' => 'utf8mb4_unicode_ci',
                 ],
                 'driver' => 'mysqli',
-                'host' => 'typo3-tinnie-mariadb',
+                'host' => 'typo3-shippy-mariadb',
                 'password' => 'db',
                 'port' => 3308,
                 'user' => 'db',

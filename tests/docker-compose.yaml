@@ -1,22 +1,22 @@
 services:
-  typo3-tinnie-apache:
+  typo3-shippy-apache:
     build: 
       context: .
       dockerfile: Dockerfile.apache
     ports:
       - "7171:80"
       - "2424:22"
-    container_name: typo3-tinnie-apache
+    container_name: typo3-shippy-apache
     volumes:
       - ./www:/var/www/html:rw
     depends_on:
-      - typo3-tinnie-mariadb
+      - typo3-shippy-mariadb
     healthcheck:
       test: ["CMD", "sh", "-c", "ss -ltn | grep ':22' || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 5
-  typo3-tinnie-mariadb:
+  typo3-shippy-mariadb:
     image: mariadb:10.11
     environment:
       MYSQL_DATABASE: db
@@ -24,4 +24,4 @@ services:
       MYSQL_PASSWORD: db
       MYSQL_TCP_PORT: 3308
       MYSQL_ROOT_PASSWORD: db
-    container_name: typo3-tinnie-mariadb
+    container_name: typo3-shippy-mariadb

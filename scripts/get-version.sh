@@ -2,12 +2,12 @@
 set -e
 
 # Version detection priority:
-# 1. TINNIE_VERSION environment variable (for custom builds)
+# 1. SHIPPY_VERSION environment variable (for custom builds)
 # 2. Git tag (if on a tagged commit)
 # 3. Fallback: branch name + commit hash
 
-if [ -n "$TINNIE_VERSION" ]; then
-    echo "$TINNIE_VERSION"
+if [ -n "$SHIPPY_VERSION" ]; then
+    echo "$SHIPPY_VERSION"
     exit 0
 fi
 

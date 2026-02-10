@@ -4,7 +4,7 @@ hosts:
     remote_user: root
     deploy_path: /var/www/html
     # optional but required for testing
-    ssh_key: ../ssh_keys/tinnie_key
+    ssh_key: ../ssh_keys/shippy_key
     ssh_options:
       StrictHostKeyChecking: yes # Not recommended for production use!
     port: 2424

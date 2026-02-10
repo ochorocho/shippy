@@ -5,20 +5,20 @@ import (
 	"path/filepath"
 	"time"
 
-	"tinnie/internal/composer"
-	"tinnie/internal/config"
-	"tinnie/internal/lock"
-	"tinnie/internal/rsync"
-	"tinnie/internal/ssh"
-	"tinnie/internal/ui"
+	"shippy/internal/composer"
+	"shippy/internal/config"
+	"shippy/internal/lock"
+	"shippy/internal/rsync"
+	"shippy/internal/ssh"
+	"shippy/internal/ui"
 )
 
 // defaultExcludePatterns contains patterns that should always be excluded from deployment
 var defaultExcludePatterns = []string{
 	".git/",
 	".gitignore",
-	".tinnie.yaml",
-	".tinnie.yaml.example",
+	".shippy.yaml",
+	".shippy.yaml.example",
 	"node_modules/",
 	".env.local",
 	".env.*.local",
@@ -58,7 +58,7 @@ func New(cfg *config.Config, comp *composer.Composer, hostName string, verbose b
 func (d *Deployer) Deploy() error {
 	out := ui.New()
 
-	out.Header("Tinnie - TYPO3 Deployment Tool")
+	out.Header("Shippy - TYPO3 Deployment Tool")
 	out.Info("Target: %s (%s@%s:%s)", d.hostName, d.host.RemoteUser, d.host.Hostname, d.host.DeployPath)
 	fmt.Printf("\n")
 

@@ -12,7 +12,7 @@
 # Common setup for all tests
 common_setup() {
   # Set binary path
-  export BIN="${BATS_TEST_DIRNAME}/../dist/tinnie"
+  export BIN="${BATS_TEST_DIRNAME}/../dist/shippy"
 
   # Load Bats libraries
   TEST_BREW_PREFIX="$(brew --prefix 2>/dev/null || true)"
@@ -29,7 +29,7 @@ docker_available() {
 
 # Check if SSH keys exist for testing
 ssh_keys_available() {
-  [[ -f "${BATS_TEST_DIRNAME}/ssh_keys/tinnie_key" ]]
+  [[ -f "${BATS_TEST_DIRNAME}/ssh_keys/shippy_key" ]]
 }
 
 # Skip test if Docker is not available
@@ -48,7 +48,7 @@ require_ssh_keys() {
 
 # Create a temporary test directory
 create_test_dir() {
-  local test_dir="${BATS_TMPDIR}/tinnie-test-${BATS_TEST_NUMBER}"
+  local test_dir="${BATS_TMPDIR}/shippy-test-${BATS_TEST_NUMBER}"
   mkdir -p "${test_dir}"
   echo "${test_dir}"
 }
@@ -66,8 +66,8 @@ create_test_composer_json() {
   local target_dir="${1:-.}"
   cat > "${target_dir}/composer.json" <<'EOF'
 {
-  "name": "test/tinnie-project",
-  "description": "Test TYPO3 project for Tinnie",
+  "name": "test/shippy-project",
+  "description": "Test TYPO3 project for Shippy",
   "type": "project",
   "require": {
     "typo3/cms-core": "^13.4"
@@ -79,17 +79,17 @@ create_test_composer_json() {
 EOF
 }
 
-# Create a minimal .tinnie.yaml for testing
+# Create a minimal .shippy.yaml for testing
 create_minimal_config() {
   local target_dir="${1:-.}"
-  cat > "${target_dir}/.tinnie.yaml" <<'EOF'
+  cat > "${target_dir}/.shippy.yaml" <<'EOF'
 hosts:
   production:
     hostname: 127.0.0.1
     remote_user: root
     deploy_path: /var/www/html
     port: 2424
-    ssh_key: ../ssh_keys/tinnie_key
+    ssh_key: ../ssh_keys/shippy_key
 EOF
 }
 

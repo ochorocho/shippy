@@ -3,8 +3,8 @@ package cmd
 import (
 	"sort"
 
-	"tinnie/internal/config"
-	"tinnie/internal/ui"
+	"shippy/internal/config"
+	"shippy/internal/ui"
 )
 
 // selectHostFromArgs returns the host from args or prompts for interactive selection

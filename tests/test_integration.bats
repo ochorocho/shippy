@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 
-# Full integration tests for tinnie deployment
+# Full integration tests for shippy deployment
 # These tests require Docker and SSH keys
 # IMPORTANT: These tests share Docker resources and must run serially
 
@@ -16,7 +16,7 @@ setup() {
 
   export DEPLOYMENT_SOURCE="$BATS_TEST_DIRNAME/typo3"
   export DEPLOYMENT_TARGET="$BATS_TEST_DIRNAME/www"
-  export BIN="$DEPLOYMENT_SOURCE/../../dist/tinnie"
+  export BIN="$DEPLOYMENT_SOURCE/../../dist/shippy"
   cd $DEPLOYMENT_SOURCE
   # composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader --no-dev
 

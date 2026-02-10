@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 
-# Tests for tinnie unlock command
+# Tests for shippy unlock command
 
 # bats file_tags=quick
 
@@ -13,7 +13,7 @@ setup() {
   load test_helpers
   common_setup
 
-  export TEST_DIR="${BATS_TMPDIR}/tinnie-unlock-test"
+  export TEST_DIR="${BATS_TMPDIR}/shippy-unlock-test"
   mkdir -p "${TEST_DIR}"
   cd "${TEST_DIR}"
   create_test_composer_json
@@ -46,11 +46,11 @@ teardown() {
 
 @test "Should fail when no host is provided and config has no hosts" {
   # Create empty config with no hosts
-  cat > .tinnie.yaml <<'EOF'
+  cat > .shippy.yaml <<'EOF'
 hosts: {}
 EOF
 
-  run -1 ${BIN} unlock --config .tinnie.yaml
+  run -1 ${BIN} unlock --config .shippy.yaml
   assert_failure
 }
 

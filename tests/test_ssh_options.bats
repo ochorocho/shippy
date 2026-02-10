@@ -12,7 +12,7 @@ setup() {
   set -eu -o pipefail
 
   export DEPLOYMENT_SOURCE="$BATS_TEST_DIRNAME/typo3"
-  export BIN="$DEPLOYMENT_SOURCE/../../dist/tinnie"
+  export BIN="$DEPLOYMENT_SOURCE/../../dist/shippy"
 
   TEST_BREW_PREFIX="$(brew --prefix 2>/dev/null || true)"
   export BATS_LIB_PATH="${BATS_LIB_PATH}:${TEST_BREW_PREFIX}/lib:/usr/lib/bats"
@@ -45,7 +45,7 @@ hosts:
     port: 2424
     remote_user: root
     deploy_path: /var/www/html
-    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/tinnie_key
+    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/shippy_key
     ssh_options:
       StrictHostKeyChecking: no
       ConnectTimeout: 30
@@ -69,7 +69,7 @@ hosts:
     port: 2424
     remote_user: root
     deploy_path: /var/www/html
-    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/tinnie_key
+    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/shippy_key
     ssh_options:
       StrictHostKeyChecking: no
       ConnectTimeout: 1m
@@ -93,7 +93,7 @@ hosts:
     port: 2424
     remote_user: root
     deploy_path: /var/www/html
-    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/tinnie_key
+    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/shippy_key
     ssh_options:
       StrictHostKeyChecking: no
       ConnectTimeout: 10
@@ -116,7 +116,7 @@ hosts:
     port: 2424
     remote_user: root
     deploy_path: /var/www/html
-    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/tinnie_key
+    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/shippy_key
     ssh_options:
       StrictHostKeyChecking: no
       ServerAliveInterval: 30
@@ -140,7 +140,7 @@ hosts:
     port: 2424
     remote_user: root
     deploy_path: /var/www/html
-    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/tinnie_key
+    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/shippy_key
     ssh_options:
       StrictHostKeyChecking: no
       ServerAliveInterval: 1m
@@ -164,7 +164,7 @@ hosts:
     port: 2424
     remote_user: root
     deploy_path: /var/www/html
-    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/tinnie_key
+    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/shippy_key
     ssh_options:
       StrictHostKeyChecking: no
       ServerAliveInterval: 30
@@ -190,7 +190,7 @@ hosts:
     port: 2424
     remote_user: root
     deploy_path: /var/www/html
-    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/tinnie_key
+    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/shippy_key
     ssh_options:
       StrictHostKeyChecking: no
       ServerAliveInterval: 5
@@ -214,7 +214,7 @@ hosts:
     port: 2424
     remote_user: root
     deploy_path: /var/www/html
-    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/tinnie_key
+    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/shippy_key
     ssh_options:
       StrictHostKeyChecking: no
       Compression: yes
@@ -238,7 +238,7 @@ hosts:
     port: 2424
     remote_user: root
     deploy_path: /var/www/html
-    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/tinnie_key
+    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/shippy_key
     ssh_options:
       StrictHostKeyChecking: no
       Compression: true
@@ -262,7 +262,7 @@ hosts:
     port: 2424
     remote_user: root
     deploy_path: /var/www/html
-    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/tinnie_key
+    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/shippy_key
     ssh_options:
       StrictHostKeyChecking: no
       Compression: yes
@@ -285,7 +285,7 @@ hosts:
     port: 2424
     remote_user: root
     deploy_path: /var/www/html
-    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/tinnie_key
+    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/shippy_key
     ssh_options:
       StrictHostKeyChecking: no
       ConnectTimeout: 15

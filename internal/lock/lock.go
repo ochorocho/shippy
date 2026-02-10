@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"tinnie/internal/config"
-	"tinnie/internal/ssh"
+	"shippy/internal/config"
+	"shippy/internal/ssh"
 )
 
 // LockInfo contains metadata about a deployment lock
@@ -38,7 +38,7 @@ func NewLocker(client *ssh.Client, deployPath string, timeout time.Duration) *Lo
 		client:     client,
 		deployPath: deployPath,
 		timeout:    timeout,
-		lockPath:   deployPath + "/.tinnie/deploy.lock",
+		lockPath:   deployPath + "/.shippy/deploy.lock",
 	}
 }
 
@@ -61,7 +61,7 @@ func (l *Locker) Acquire(message string) error {
 			"  Expires:   %s (in %d minutes)\n"+
 			"  Message:   %s\n\n"+
 			"To unlock manually, run:\n"+
-			"  tinnie unlock\n\n"+
+			"  shippy unlock\n\n"+
 			"Or wait for automatic expiry in %d minutes.",
 			info.LockedBy,
 			info.LockedAt.Format("2006-01-02 15:04:05"),
@@ -93,10 +93,10 @@ func (l *Locker) Acquire(message string) error {
 		return fmt.Errorf("failed to marshal lock info: %w", err)
 	}
 
-	// Ensure .tinnie directory exists
-	tinnieDir := l.deployPath + "/.tinnie"
-	if _, err := l.client.RunCommand(fmt.Sprintf("mkdir -p %s", tinnieDir)); err != nil {
-		return fmt.Errorf("failed to create .tinnie directory: %w", err)
+	// Ensure .shippy directory exists
+	shippyDir := l.deployPath + "/.shippy"
+	if _, err := l.client.RunCommand(fmt.Sprintf("mkdir -p %s", shippyDir)); err != nil {
+		return fmt.Errorf("failed to create .shippy directory: %w", err)
 	}
 
 	// Write lock file

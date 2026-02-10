@@ -17,7 +17,7 @@ hosts:
     port: 2424
     remote_user: root
     deploy_path: /var/www/html
-    ssh_key: ../ssh_keys/tinnie_key
+    ssh_key: ../ssh_keys/shippy_key
     ssh_multiplexing: false
     ssh_options:
       StrictHostKeyChecking: ${HOST_KEY_CHECKING|accept-new}
@@ -27,7 +27,7 @@ hosts:
     port: 2424
     remote_user: root
     deploy_path: /var/www/html
-    ssh_key: ../ssh_keys/tinnie_key
+    ssh_key: ../ssh_keys/shippy_key
 
 commands:
   - name: Install TYPO3
@@ -35,7 +35,7 @@ commands:
       TYPO3_DB_DRIVER=mysqli \
       TYPO3_DB_USERNAME=db \
       TYPO3_DB_PORT=3308 \
-      TYPO3_DB_HOST=typo3-tinnie-mariadb \
+      TYPO3_DB_HOST=typo3-shippy-mariadb \
       TYPO3_DB_DBNAME=db \
       TYPO3_DB_PASSWORD=db \
       TYPO3_SETUP_ADMIN_EMAIL=admin@example.com \

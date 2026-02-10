@@ -12,7 +12,7 @@ setup() {
   set -eu -o pipefail
 
   export DEPLOYMENT_SOURCE="$BATS_TEST_DIRNAME/typo3"
-  export BIN="$DEPLOYMENT_SOURCE/../../dist/tinnie"
+  export BIN="$DEPLOYMENT_SOURCE/../../dist/shippy"
   export TEST_KNOWN_HOSTS="$BATS_TEST_TMPDIR/known_hosts"
 
   TEST_BREW_PREFIX="$(brew --prefix 2>/dev/null || true)"
@@ -65,7 +65,7 @@ hosts:
     port: 2424
     remote_user: root
     deploy_path: /var/www/html
-    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/tinnie_key
+    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/shippy_key
     ssh_options:
       StrictHostKeyChecking: no
 EOF
@@ -94,7 +94,7 @@ hosts:
     port: 2424
     remote_user: root
     deploy_path: /var/www/html
-    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/tinnie_key
+    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/shippy_key
     ssh_options:
       StrictHostKeyChecking: accept-new
       UserKnownHostsFile: $TEST_KNOWN_HOSTS
@@ -128,7 +128,7 @@ hosts:
     port: 2424
     remote_user: root
     deploy_path: /var/www/html
-    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/tinnie_key
+    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/shippy_key
     ssh_options:
       StrictHostKeyChecking: accept-new
       UserKnownHostsFile: $TEST_KNOWN_HOSTS
@@ -193,7 +193,7 @@ hosts:
     port: 2424
     remote_user: root
     deploy_path: /var/www/html
-    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/tinnie_key
+    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/shippy_key
     ssh_options:
       StrictHostKeyChecking: accept-new
 EOF
@@ -220,7 +220,7 @@ hosts:
     port: 2424
     remote_user: root
     deploy_path: /var/www/html
-    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/tinnie_key
+    ssh_key: $DEPLOYMENT_SOURCE/../ssh_keys/shippy_key
     ssh_options:
       StrictHostKeyChecking: accept-new
       UserKnownHostsFile: $CUSTOM_KNOWN_HOSTS

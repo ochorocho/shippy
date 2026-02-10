@@ -1,5 +1,5 @@
 # Binaries
-tinnie
+shippy
 *.exe
 *.dll
 *.so
@@ -30,10 +30,10 @@ Thumbs.db
 
 # Config files (keep examples)
 dist/
-.tinnie.yaml
+.shippy.yaml
 tests/www/*
 !tests/www/.gitkeep
 tests/typo3/*
 !tests/typo3/config
 !tests/typo3/composer.json
-!tests/typo3/.tinnie.yaml
+!tests/typo3/.shippy.yaml

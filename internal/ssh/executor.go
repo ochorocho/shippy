@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"tinnie/internal/ui"
+	"shippy/internal/ui"
 )
 
 // Command represents a command to execute

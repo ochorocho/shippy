@@ -1,6 +1,6 @@
 {
-  "name": "test/tinnie-project",
-  "description": "Test TYPO3 project for Tinnie config tests",
+  "name": "test/shippy-project",
+  "description": "Test TYPO3 project for Shippy config tests",
   "type": "project",
   "require": {
     "typo3/cms-core": "^12.0"

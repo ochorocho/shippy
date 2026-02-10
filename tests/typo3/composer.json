@@ -1,6 +1,6 @@
 {
-  "name": "typo3/tinnie-test",
-  "description": "Tinnie ",
+  "name": "typo3/shippy-test",
+  "description": "Shippy ",
   "license": "GPL-2.0-or-later",
   "type": "project",
   "config": {

@@ -13,9 +13,9 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:           "tinnie",
+	Use:           "shippy",
 	Short:         "A TYPO3 deployment tool",
-	Long:          `Tinnie is a minimal, opinionated deployment tool for TYPO3 projects.`,
+	Long:          `Shippy is a minimal, opinionated deployment tool for TYPO3 projects.`,
 	SilenceErrors: true, // Commands handle their own error display
 	Run: func(cmd *cobra.Command, args []string) {
 		if showVersion {
@@ -36,11 +36,11 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", ".tinnie.yaml", "config file (default is .tinnie.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", ".shippy.yaml", "config file (default is .shippy.yaml)")
 	rootCmd.Flags().BoolVarP(&showVersion, "version", "v", false, "print version information")
 }
 
 // printVersion outputs the version information
 func printVersion() {
-	fmt.Printf("tinnie version %s\n", Version)
+	fmt.Printf("shippy version %s\n", Version)
 }

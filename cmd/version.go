@@ -17,7 +17,7 @@ var (
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
-	Long:  `Display the version, git commit, build date, and Go version of tinnie.`,
+	Long:  `Display the version, git commit, build date, and Go version of shippy.`,
 	Run:   runVersion,
 }
 
@@ -26,7 +26,7 @@ func init() {
 }
 
 func runVersion(cmd *cobra.Command, args []string) {
-	fmt.Printf("tinnie version %s\n", Version)
+	fmt.Printf("shippy version %s\n", Version)
 	fmt.Printf("  commit: %s\n", GitCommit)
 	fmt.Printf("  built: %s\n", BuildDate)
 	fmt.Printf("  go: %s\n", runtime.Version())

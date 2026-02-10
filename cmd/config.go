@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"tinnie/internal/composer"
-	"tinnie/internal/config"
-	"tinnie/internal/ui"
+	"shippy/internal/composer"
+	"shippy/internal/config"
+	"shippy/internal/ui"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -38,9 +38,9 @@ including global settings and per-host overrides.
 By default, template variables are resolved. Use --raw to show unresolved templates.
 
 Examples:
-  tinnie config show              # Show complete config with resolved templates
-  tinnie config show --raw        # Show raw config without resolving templates
-  tinnie config show production   # Show config for production host`,
+  shippy config show              # Show complete config with resolved templates
+  shippy config show --raw        # Show raw config without resolving templates
+  shippy config show production   # Show config for production host`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runShow,
 }
