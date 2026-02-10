@@ -1,4 +1,4 @@
-.PHONY: help build build-release test clean version
+.PHONY: help build build-release test docker-test clean version
 
 # Version information
 VERSION := $(shell ./scripts/get-version.sh)
@@ -33,6 +33,9 @@ build-release: ## Build release binaries for all platforms
 test: ## Run tests
 	@echo "Running tests..."
 	@bats tests/*.bats
+
+docker-test: ## Build Docker image and run tests inside it
+	@./scripts/docker-test.sh
 
 version: ## Show version that would be built
 	@echo "Version: $(VERSION)"
