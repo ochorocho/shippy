@@ -9,7 +9,7 @@ shared:
   - var/session/
   - public/fileadmin/
   - public/uploads/
-keep_releases: 5
+keep_releases: 2
 
 hosts:
   production:
