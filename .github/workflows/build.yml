@@ -9,15 +9,13 @@ on:
 
 jobs:
   build-and-push:
-    name: "Build go ${{ matrix.go-version }} for ${{ matrix.os }}/${{ matrix.arch }}"
+    name: "Build for ${{ matrix.os }}/${{ matrix.arch }}"
     runs-on: ubuntu-24.04
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
-        go-version:
-          - "1.24"
         os:
           - darwin
           - linux
@@ -27,13 +25,10 @@ jobs:
 
     steps:
       - name: Checkout
-        id: checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ matrix.go-version }}
+      - name: Setup tools
+        uses: jdx/mise-action@v2
 
       - name: Build binary
         shell: bash

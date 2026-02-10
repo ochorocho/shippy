@@ -21,8 +21,7 @@ jobs:
 
     steps:
       - name: Checkout
-        id: checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@v4
 
       - name: Run Gosec Security Scanner
         uses: securego/gosec@master
