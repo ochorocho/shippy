@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Shippy is a minimal, opinionated deployment tool for PHP projects written in pure Go. It provides zero-downtime deployments with atomic releases via SSH, inspired by Deployer and Capistrano. Single binary, no external dependencies.
+Shippy is a minimal, opinionated deployment tool for Composer based PHP projects written in pure Go. It provides zero-downtime deployments with atomic releases via SSH, inspired by Deployer and Capistrano. Single binary, no external dependencies.
 
 ## Build & Test Commands
 

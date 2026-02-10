@@ -39,7 +39,7 @@ func (o *Output) PrintLogo() {
 	fmt.Printf("\033[%dC\033[1;38;2;255;135;0mShippy\033[0m\n", textCol)
 	// Move right again for subtitle
 	fmt.Printf("\033[%dCMinimal, opinionated deployment\n", textCol)
-	fmt.Printf("\033[%dCtool for PHP projects.\n", textCol)
+	fmt.Printf("\033[%dCtool for Composer based PHP projects.\n", textCol)
 	// Move cursor back down to clear the image area
 	remaining := logoRows - titleRow - 2
 	if remaining > 0 {
