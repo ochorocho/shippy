@@ -3,6 +3,7 @@ package ssh
 import (
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -355,6 +356,12 @@ func (c *Client) UploadFile(localPath, remotePath string, mode os.FileMode) erro
 func (c *Client) MkdirAll(path string) error {
 	_, err := c.RunCommand(fmt.Sprintf("mkdir -p %s", path))
 	return err
+}
+
+// Dial opens a connection to addr from the remote host.
+// Used for SSH tunneling (e.g., connecting to a remote database).
+func (c *Client) Dial(network, addr string) (net.Conn, error) {
+	return c.client.Dial(network, addr)
 }
 
 // parseTimeout parses timeout string to time.Duration.

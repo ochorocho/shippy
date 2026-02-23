@@ -65,6 +65,50 @@ hosts:
       - public/fileadmin/
       - public/uploads/
 
+# Backup configuration
+# Used by: shippy backup [host]
+# Creates a ZIP with database dump + specified files
+backup:
+  # Local directory for backup files (default: current directory)
+  output: ./backups
+
+  # Files and directories to include from the shared/ directory
+  # Only listed paths are downloaded (relative to shared/)
+  files:
+    - .env
+    - public/fileadmin/
+    - public/uploads/
+
+  database:
+    # How to obtain credentials: "auto" (default), "dotenv", "typo3", "manual"
+    # auto:   tries .env keys, TYPO3 .env keys, then TYPO3 settings.php
+    # dotenv: reads standard .env keys (DB_HOST, DB_DATABASE, etc.)
+    # typo3:  reads TYPO3-specific .env keys or settings.php
+    # manual: uses the driver/host/port/name/user/password fields below
+    # credentials: auto
+
+    # Manual database credentials (used when credentials: manual)
+    # Supports environment variables: ${DB_PASSWORD}
+    # driver: mysql           # mysql, postgresql, sqlite
+    # host: 127.0.0.1
+    # port: 3306
+    # name: my_database
+    # user: db_user
+    # password: ${DB_PASSWORD}
+
+    # Tables to exclude from backup (glob patterns supported)
+    exclude_tables:
+      - "cache_*"
+      - "cf_*"
+      - "sys_log"
+      - "be_sessions"
+
+    # DBMS-specific options
+    options:
+      single_transaction: "true"  # MySQL: consistent dump without locking
+      # charset: "utf8mb4"       # MySQL: character set
+      # schema: "public"         # PostgreSQL: schema to dump
+
 # Commands to run after deployment (on remote server)
 commands:
   - name: Clear TYPO3 cache

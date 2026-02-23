@@ -1,0 +1,17 @@
+# Configuration with manual database credentials for testing
+hosts:
+  production:
+    hostname: 127.0.0.1
+    remote_user: root
+    deploy_path: /var/www/html
+    port: 2424
+
+backup:
+  database:
+    credentials: manual
+    driver: mysql
+    host: 127.0.0.1
+    port: 3306
+    name: my_database
+    user: db_user
+    password: secret
