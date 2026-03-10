@@ -1,0 +1,22 @@
+# Configuration with backup section for testing
+hosts:
+  production:
+    hostname: 127.0.0.1
+    remote_user: root
+    deploy_path: /var/www/html
+    port: 2424
+    shared:
+      - .env
+      - var/log/
+
+backup:
+  output: ./backups
+  files:
+    - .env
+    - public/fileadmin/
+  database:
+    exclude_tables:
+      - "cache_*"
+      - "cf_*"
+    options:
+      single_transaction: "true"

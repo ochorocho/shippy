@@ -22,6 +22,9 @@ type Config struct {
 	LockEnabled  *bool    `yaml:"lock_enabled,omitempty"`
 	LockTimeout  int      `yaml:"lock_timeout,omitempty"`
 
+	// Backup configuration
+	Backup *BackupConfig `yaml:"backup,omitempty"`
+
 	// Host and command configuration
 	Hosts            map[string]Host `yaml:"hosts"`
 	Commands         []Command       `yaml:"commands"`
@@ -47,6 +50,7 @@ type Host struct {
 	KeepReleases    int               `yaml:"keep_releases,omitempty"`
 	LockEnabled     *bool             `yaml:"lock_enabled,omitempty"` // Pointer to distinguish unset from false
 	LockTimeout     int               `yaml:"lock_timeout,omitempty"` // Timeout in minutes
+	Backup          *BackupConfig     `yaml:"backup,omitempty"`       // Per-host backup override
 }
 
 // Command represents a command to execute
