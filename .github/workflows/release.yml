@@ -22,6 +22,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Detect tag at HEAD
+        id: tag
+        run: |
+          TAG=$(git tag --points-at HEAD --sort=-creatordate | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          if [ -n "$TAG" ]; then
+            echo "Detected tag: $TAG"
+          else
+            echo "No matching v*.*.* tag at HEAD — only branch-ref image tag will be pushed"
+          fi
 
       - name: Find Build workflow run
         id: build-run
@@ -96,11 +108,11 @@ jobs:
             ghcr.io/${{ github.repository }}
             ${{ secrets.DOCKERHUB_USERNAME }}/shippy
           tags: |
-            type=raw,value=latest,enable=${{ github.event.workflow_run.head_branch == 'main' }}
+            type=raw,value=latest,enable=${{ steps.tag.outputs.tag != '' }}
             type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
+            type=semver,pattern={{version}},value=${{ steps.tag.outputs.tag }},enable=${{ steps.tag.outputs.tag != '' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.tag.outputs.tag }},enable=${{ steps.tag.outputs.tag != '' }}
+            type=semver,pattern={{major}},value=${{ steps.tag.outputs.tag }},enable=${{ steps.tag.outputs.tag != '' }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
