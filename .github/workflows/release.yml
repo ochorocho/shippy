@@ -112,3 +112,77 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  release-assets:
+    name: "Attach binaries to GitHub Release"
+    runs-on: ubuntu-24.04
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: write
+      actions: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Detect tag at HEAD
+        id: tag
+        run: |
+          TAG=$(git tag --points-at HEAD --sort=-creatordate | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          if [ -n "$TAG" ]; then
+            echo "Detected tag: $TAG"
+          else
+            echo "No matching v*.*.* tag at HEAD — skipping release-asset upload"
+          fi
+
+      - name: Find Build workflow run
+        id: build-run
+        if: steps.tag.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUN_ID=$(gh api "/repos/${{ github.repository }}/actions/workflows/build.yml/runs?head_sha=${{ github.event.workflow_run.head_sha }}&status=success" --jq '.workflow_runs[0].id')
+          echo "run_id=${RUN_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Download all build artifacts
+        if: steps.tag.outputs.tag != ''
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          run-id: ${{ steps.build-run.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pattern: "shippy-*"
+
+      - name: Stage release files
+        if: steps.tag.outputs.tag != ''
+        run: |
+          mkdir -p dist
+          for os in darwin linux; do
+            for arch in amd64 arm64; do
+              cp "artifacts/shippy-${os}-${arch}/shippy" "dist/shippy-${os}-${arch}"
+              cp "artifacts/shippy-${os}-${arch}-checksum/shippy.checksum" "dist/shippy-${os}-${arch}.checksum"
+            done
+          done
+          chmod +x dist/shippy-darwin-amd64 dist/shippy-darwin-arm64 dist/shippy-linux-amd64 dist/shippy-linux-arm64
+          ls -lh dist/
+
+      - name: Create or update GitHub Release
+        if: steps.tag.outputs.tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            dist/shippy-darwin-amd64
+            dist/shippy-darwin-arm64
+            dist/shippy-linux-amd64
+            dist/shippy-linux-arm64
+            dist/shippy-darwin-amd64.checksum
+            dist/shippy-darwin-arm64.checksum
+            dist/shippy-linux-amd64.checksum
+            dist/shippy-linux-arm64.checksum
