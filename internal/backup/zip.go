@@ -20,7 +20,7 @@ type ZipBuilder struct {
 func NewZipBuilder(path string) (*ZipBuilder, error) {
 	// Ensure parent directory exists
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return nil, fmt.Errorf("failed to create output directory '%s': %w", dir, err)
 	}
 
@@ -62,7 +62,7 @@ func (z *ZipBuilder) Close() error {
 	z.closed = true
 
 	if err := z.writer.Close(); err != nil {
-		z.file.Close()
+		_ = z.file.Close()
 		return fmt.Errorf("failed to finalize ZIP: %w", err)
 	}
 	return z.file.Close()

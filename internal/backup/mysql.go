@@ -46,7 +46,7 @@ func NewMySQLDumper(client *ssh.Client, creds *DatabaseCredentials) (*MySQLDumpe
 	}
 
 	if err := db.Ping(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to connect to MySQL database '%s': %w", creds.Name, err)
 	}
 

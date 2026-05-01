@@ -43,7 +43,7 @@ func NewPostgresDumper(client *ssh.Client, creds *DatabaseCredentials) (*Postgre
 	db := stdlib.OpenDB(*connConfig)
 
 	if err := db.Ping(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to connect to PostgreSQL database '%s': %w", creds.Name, err)
 	}
 

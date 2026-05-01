@@ -80,6 +80,7 @@ func ReadReleaseMetadata(client *ssh.Client, releasePath string) (*ReleaseMetada
 
 // gitCommand runs a git command and returns the trimmed output
 func gitCommand(args ...string) (string, error) {
+	// #nosec G204 -- "git" is hardcoded; args come from internal callers, never user input
 	cmd := exec.Command("git", args...)
 	output, err := cmd.Output()
 	if err != nil {

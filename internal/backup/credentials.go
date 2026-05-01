@@ -71,10 +71,12 @@ func extractViaPhp(client *ssh.Client, deployPath, source string) (*DatabaseCred
 	defer os.Remove(localPath)
 
 	if _, err := tmpFile.Write(scriptContent); err != nil {
-		tmpFile.Close()
+		_ = tmpFile.Close()
 		return nil, fmt.Errorf("failed to write temp file: %w", err)
 	}
-	tmpFile.Close()
+	if err := tmpFile.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close temp file: %w", err)
+	}
 
 	// Upload to server
 	if err := client.UploadFile(localPath, remotePath, 0o644); err != nil {
@@ -83,7 +85,7 @@ func extractViaPhp(client *ssh.Client, deployPath, source string) (*DatabaseCred
 
 	// Ensure cleanup
 	defer func() {
-		client.RunCommand(fmt.Sprintf("rm -f %s", remotePath))
+		_, _ = client.RunCommand(fmt.Sprintf("rm -f %s", remotePath))
 	}()
 
 	// Execute PHP script
