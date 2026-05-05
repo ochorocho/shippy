@@ -22,7 +22,7 @@ based PHP projects, inspired by Deployer and Capistrano.
 ### From Source
 
 ```bash
-git clone https://github.com/yourusername/shippy.git
+git clone https://github.com/ochorocho/shippy.git
 cd shippy
 go build -o shippy
 sudo mv shippy /usr/local/bin/
@@ -31,7 +31,7 @@ sudo mv shippy /usr/local/bin/
 ### Using Go Install
 
 ```bash
-go install github.com/yourusername/shippy@latest
+go install github.com/ochorocho/shippy@latest
 ```
 
 ## Quick Start
