@@ -48,7 +48,7 @@ func WriteReleaseMetadata(client *ssh.Client, releasePath string) error {
 	}
 
 	metaPath := filepath.Join(releasePath, metadataFileName)
-	cmd := fmt.Sprintf("cat > %s << 'SHIPPY_EOF'\n%s\nSHIPPY_EOF", metaPath, string(data))
+	cmd := fmt.Sprintf("cat > %s << 'SHIPPY_EOF'\n%s\nSHIPPY_EOF", ssh.Quote(metaPath), string(data))
 	if _, err := client.RunCommand(cmd); err != nil {
 		return fmt.Errorf("failed to write release metadata: %w", err)
 	}
@@ -59,7 +59,7 @@ func WriteReleaseMetadata(client *ssh.Client, releasePath string) error {
 // ReadReleaseMetadata reads and parses release metadata from a remote release directory
 func ReadReleaseMetadata(client *ssh.Client, releasePath string) (*ReleaseMetadata, error) {
 	metaPath := filepath.Join(releasePath, metadataFileName)
-	cmd := fmt.Sprintf("cat %s 2>/dev/null", metaPath)
+	cmd := fmt.Sprintf("cat %s 2>/dev/null", ssh.Quote(metaPath))
 	output, err := client.RunCommand(cmd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read release metadata: %w", err)

@@ -42,10 +42,12 @@ func (e *Executor) Execute(commands []Command, workDir string) error {
 		out.Yellow.Printf("  $ %s\n", cmd.Run)
 		fmt.Printf("\n")
 
-		// Build full command (cd to work directory first)
+		// Build full command (cd to work directory first).
+		// workDir is a path and is quoted; cmd.Run is the operator-defined
+		// command and is intentionally passed to the shell verbatim.
 		fullCmd := cmd.Run
 		if workDir != "" {
-			fullCmd = fmt.Sprintf("cd %s && %s", workDir, cmd.Run)
+			fullCmd = fmt.Sprintf("cd %s && %s", Quote(workDir), cmd.Run)
 		}
 
 		// Execute command with output streaming

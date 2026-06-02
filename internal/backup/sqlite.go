@@ -26,7 +26,7 @@ func NewSQLiteDumper(client *ssh.Client, creds *DatabaseCredentials) (*SQLiteDum
 // excludeTables and options are ignored for SQLite (the entire file is copied).
 func (d *SQLiteDumper) Dump(w io.Writer, _ []string, _ map[string]string) error {
 	// Stream the file via SSH cat command
-	output, err := d.client.RunCommand(fmt.Sprintf("cat %s", d.creds.Name))
+	output, err := d.client.RunCommand(fmt.Sprintf("cat %s", ssh.Quote(d.creds.Name)))
 	if err != nil {
 		return fmt.Errorf("failed to read SQLite database '%s': %w", d.creds.Name, err)
 	}

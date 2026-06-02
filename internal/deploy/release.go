@@ -64,7 +64,7 @@ func (r *ReleaseManager) UpdateCurrentSymlink(releasePath string) error {
 	// -s: create symbolic link
 	// -f: force (remove existing destination file)
 	// -n: treat destination as normal file if it's a symlink to directory
-	cmd := fmt.Sprintf("ln -sfn releases/%s %s", releaseName, currentPath)
+	cmd := fmt.Sprintf("ln -sfn %s %s", ssh.Quote(filepath.Join("releases", releaseName)), ssh.Quote(currentPath))
 	if _, err := r.client.RunCommand(cmd); err != nil {
 		// Provide helpful error message with manual fix instructions
 		return fmt.Errorf("failed to update 'current' symlink: %w\n\nTo fix manually, SSH to the server and run:\n  cd %s\n  rm -f current\n  ln -s releases/%s current",
@@ -83,7 +83,7 @@ func (r *ReleaseManager) CleanupOldReleases(keep int) error {
 	releasesPath := filepath.Join(r.deployPath, "releases")
 
 	// List releases
-	output, err := r.client.RunCommand(fmt.Sprintf("ls -1 %s 2>/dev/null || true", releasesPath))
+	output, err := r.client.RunCommand(fmt.Sprintf("ls -1 %s 2>/dev/null || true", ssh.Quote(releasesPath)))
 	if err != nil {
 		return fmt.Errorf("failed to list releases: %w", err)
 	}
@@ -106,7 +106,7 @@ func (r *ReleaseManager) CleanupOldReleases(keep int) error {
 		toRemove := releases[keep:]
 		for _, release := range toRemove {
 			releasePath := filepath.Join(releasesPath, release)
-			cmd := fmt.Sprintf("rm -rf %s", releasePath)
+			cmd := fmt.Sprintf("rm -rf %s", ssh.Quote(releasePath))
 			if _, err := r.client.RunCommand(cmd); err != nil {
 				return fmt.Errorf("failed to remove old release %s: %w", release, err)
 			}
@@ -142,7 +142,8 @@ func (r *ReleaseManager) CreateSharedSymlinks(releasePath string, sharedPaths []
 			}
 		} else {
 			// Create shared file if it doesn't exist
-			cmd := fmt.Sprintf("test -e %s || touch %s", sharedFullPath, sharedFullPath)
+			quotedShared := ssh.Quote(sharedFullPath)
+			cmd := fmt.Sprintf("test -e %s || touch %s", quotedShared, quotedShared)
 			if _, err := r.client.RunCommand(cmd); err != nil {
 				return fmt.Errorf("failed to create shared file %s: %w", sharedPath, err)
 			}
@@ -164,13 +165,13 @@ func (r *ReleaseManager) CreateSharedSymlinks(releasePath string, sharedPaths []
 		}
 
 		// Remove existing file/directory in release if it exists
-		cmd := fmt.Sprintf("rm -rf %s", releaseTargetPath)
+		cmd := fmt.Sprintf("rm -rf %s", ssh.Quote(releaseTargetPath))
 		if _, err := r.client.RunCommand(cmd); err != nil {
 			return fmt.Errorf("failed to remove existing path %s: %w", releaseTargetPath, err)
 		}
 
 		// Create symlink
-		cmd = fmt.Sprintf("ln -nfs %s %s", relPath, releaseTargetPath)
+		cmd = fmt.Sprintf("ln -nfs %s %s", ssh.Quote(relPath), ssh.Quote(releaseTargetPath))
 		if _, err := r.client.RunCommand(cmd); err != nil {
 			return fmt.Errorf("failed to create symlink for %s: %w", sharedPath, err)
 		}
@@ -191,7 +192,7 @@ type ReleaseInfo struct {
 func (r *ReleaseManager) ListReleases() ([]ReleaseInfo, error) {
 	releasesPath := filepath.Join(r.deployPath, "releases")
 
-	output, err := r.client.RunCommand(fmt.Sprintf("ls -1 %s 2>/dev/null || true", releasesPath))
+	output, err := r.client.RunCommand(fmt.Sprintf("ls -1 %s 2>/dev/null || true", ssh.Quote(releasesPath)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to list releases: %w", err)
 	}
@@ -236,7 +237,7 @@ func (r *ReleaseManager) ListReleases() ([]ReleaseInfo, error) {
 // GetCurrentRelease returns the path of the current release
 func (r *ReleaseManager) GetCurrentRelease() (string, error) {
 	currentPath := filepath.Join(r.deployPath, "current")
-	cmd := fmt.Sprintf("readlink -f %s", currentPath)
+	cmd := fmt.Sprintf("readlink -f %s", ssh.Quote(currentPath))
 
 	output, err := r.client.RunCommand(cmd)
 	if err != nil {

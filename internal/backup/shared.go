@@ -17,7 +17,7 @@ func DownloadShared(client *ssh.Client, deployPath string, files []string, zb *Z
 	sharedPath := filepath.Join(deployPath, "shared")
 
 	// Check if shared directory exists
-	output, err := client.RunCommand(fmt.Sprintf("test -d %s && echo exists || echo missing", sharedPath))
+	output, err := client.RunCommand(fmt.Sprintf("test -d %s && echo exists || echo missing", ssh.Quote(sharedPath)))
 	if err != nil || strings.TrimSpace(output) != "exists" {
 		return fmt.Errorf("shared directory does not exist: %s", sharedPath)
 	}
@@ -27,10 +27,10 @@ func DownloadShared(client *ssh.Client, deployPath string, files []string, zb *Z
 	quotedPaths := make([]string, len(files))
 	for i, f := range files {
 		// Remove trailing slash for consistency (tar handles both files and dirs)
-		quotedPaths[i] = fmt.Sprintf("'%s'", strings.TrimSuffix(f, "/"))
+		quotedPaths[i] = ssh.Quote(strings.TrimSuffix(f, "/"))
 	}
 
-	tarCmd := fmt.Sprintf("tar cf - -C %s %s 2>/dev/null", sharedPath, strings.Join(quotedPaths, " "))
+	tarCmd := fmt.Sprintf("tar cf - -C %s %s 2>/dev/null", ssh.Quote(sharedPath), strings.Join(quotedPaths, " "))
 
 	// Stream as tar archive via SSH
 	pr, pw := io.Pipe()

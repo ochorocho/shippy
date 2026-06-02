@@ -9,9 +9,25 @@ on:
 permissions:
   actions: read
   contents: read
-  security-events: read
 
 jobs:
+  audit:
+    name: "Security audit"
+    runs-on: ubuntu-24.04
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run security audit (vet, race, govulncheck, gosec)
+        run: make audit
+
   test-shippy:
     name: "Test on Linux amd64"
     runs-on: ubuntu-24.04
@@ -22,19 +38,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Run Gosec Security Scanner
-        uses: securego/gosec@v2.26.1
-        with:
-          args: ./...
-        # with:
-        #   # we let the report trigger content trigger a failure using the GitHub Security features.
-        #   args: '-no-fail -fmt sarif -out results.sarif ./...'
-      # - name: Upload SARIF file
-      #   uses: github/codeql-action/upload-sarif@v4
-      #   with:
-      #     # Path to SARIF file relative to the root of the repository
-      #     sarif_file: results.sarif
 
       - name: Install dependencies
         uses: php-actions/composer@v6

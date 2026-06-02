@@ -116,7 +116,7 @@ func (s *Syncer) Sync(files []FileInfo) error {
 			}
 
 			// Delete the file from cache
-			deleteCmd := fmt.Sprintf("rm -f %s", remoteCachePath)
+			deleteCmd := fmt.Sprintf("rm -f %s", ssh.Quote(remoteCachePath))
 			if _, err := s.client.RunCommand(deleteCmd); err != nil {
 				// Non-fatal: log but continue
 				if s.verbose {
@@ -136,7 +136,7 @@ func (s *Syncer) Sync(files []FileInfo) error {
 
 	// Use rsync on the remote server to copy from cache to release
 	// --delete removes files that only exist in release (not in cache)
-	copyCmd := fmt.Sprintf("rsync -a --delete %s/ %s/", cachePath, s.remotePath)
+	copyCmd := fmt.Sprintf("rsync -a --delete %s/ %s/", ssh.Quote(cachePath), ssh.Quote(s.remotePath))
 	output, err := s.client.RunCommand(copyCmd)
 	if err != nil {
 		return fmt.Errorf("failed to copy from cache to release: %w (output: %s)", err, output)
@@ -157,7 +157,7 @@ type RemoteFileInfo struct {
 func (s *Syncer) getRemoteFileIndex(cachePath string) (map[string]RemoteFileInfo, error) {
 	// Use find + stat to get all file info in one command
 	// Output format: path<tab>size<tab>mtime
-	cmd := fmt.Sprintf("cd %s && find . -type f -exec stat -c '%%n\t%%s\t%%Y' {} + 2>/dev/null || true", cachePath)
+	cmd := fmt.Sprintf("cd %s && find . -type f -exec stat -c '%%n\t%%s\t%%Y' {} + 2>/dev/null || true", ssh.Quote(cachePath))
 	output, err := s.client.RunCommand(cmd)
 	if err != nil {
 		return nil, err

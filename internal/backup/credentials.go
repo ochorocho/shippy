@@ -85,13 +85,14 @@ func extractViaPhp(client *ssh.Client, deployPath, source string) (*DatabaseCred
 
 	// Ensure cleanup
 	defer func() {
-		_, _ = client.RunCommand(fmt.Sprintf("rm -f %s", remotePath))
+		_, _ = client.RunCommand(fmt.Sprintf("rm -f %s", ssh.Quote(remotePath)))
 	}()
 
 	// Execute PHP script
 	sharedPath := filepath.Join(deployPath, "shared")
 	currentPath := filepath.Join(deployPath, "current")
-	output, err := client.RunCommand(fmt.Sprintf("php %s %s %s %s", remotePath, sharedPath, currentPath, source))
+	output, err := client.RunCommand(fmt.Sprintf("php %s %s %s %s",
+		ssh.Quote(remotePath), ssh.Quote(sharedPath), ssh.Quote(currentPath), ssh.Quote(source)))
 	if err != nil {
 		return nil, fmt.Errorf("PHP credential extraction failed: %w\nOutput: %s", err, output)
 	}

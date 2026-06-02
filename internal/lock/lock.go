@@ -95,12 +95,14 @@ func (l *Locker) Acquire(message string) error {
 
 	// Ensure .shippy directory exists
 	shippyDir := l.deployPath + "/.shippy"
-	if _, err := l.client.RunCommand(fmt.Sprintf("mkdir -p %s", shippyDir)); err != nil {
+	if _, err := l.client.RunCommand(fmt.Sprintf("mkdir -p %s", ssh.Quote(shippyDir))); err != nil {
 		return fmt.Errorf("failed to create .shippy directory: %w", err)
 	}
 
-	// Write lock file
-	cmd := fmt.Sprintf("cat > %s << 'EOF'\n%s\nEOF", l.lockPath, string(data))
+	// Write lock file. The heredoc body is JSON delimited by a quoted 'EOF'
+	// marker, so the shell performs no expansion on it; only lockPath is
+	// interpolated as a shell word and must be quoted.
+	cmd := fmt.Sprintf("cat > %s << 'EOF'\n%s\nEOF", ssh.Quote(l.lockPath), string(data))
 	if _, err := l.client.RunCommand(cmd); err != nil {
 		return fmt.Errorf("failed to create lock file: %w", err)
 	}
@@ -110,7 +112,7 @@ func (l *Locker) Acquire(message string) error {
 
 // Release removes the deployment lock
 func (l *Locker) Release() error {
-	cmd := fmt.Sprintf("rm -f %s", l.lockPath)
+	cmd := fmt.Sprintf("rm -f %s", ssh.Quote(l.lockPath))
 	_, err := l.client.RunCommand(cmd)
 	// Ignore errors - lock might not exist
 	return err
@@ -119,7 +121,7 @@ func (l *Locker) Release() error {
 // IsLocked checks if a valid (non-expired) lock exists
 func (l *Locker) IsLocked() (bool, *LockInfo, error) {
 	// Check if lock file exists
-	output, err := l.client.RunCommand(fmt.Sprintf("cat %s 2>/dev/null || echo ''", l.lockPath))
+	output, err := l.client.RunCommand(fmt.Sprintf("cat %s 2>/dev/null || echo ''", ssh.Quote(l.lockPath)))
 	if err != nil {
 		// Command failed but we got output - parse it anyway
 		output = strings.TrimSpace(output)
@@ -180,7 +182,7 @@ func (l *Locker) RenewLock() error {
 		return fmt.Errorf("failed to marshal lock info: %w", err)
 	}
 
-	cmd := fmt.Sprintf("cat > %s << 'EOF'\n%s\nEOF", l.lockPath, string(data))
+	cmd := fmt.Sprintf("cat > %s << 'EOF'\n%s\nEOF", ssh.Quote(l.lockPath), string(data))
 	if _, err := l.client.RunCommand(cmd); err != nil {
 		return fmt.Errorf("failed to renew lock: %w", err)
 	}
