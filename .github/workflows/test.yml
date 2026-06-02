@@ -1,29 +1,27 @@
 name: Test
 
 on:
-  workflow_run:
-    workflows: ["Build"]
-    types:
-      - completed
+  pull_request:
+    branches:
+      - "main"
+  push:
+    branches:
+      - "main"
 
 permissions:
-  actions: read
   contents: read
 
 jobs:
   audit:
     name: "Security audit"
     runs-on: ubuntu-24.04
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
+      - name: Setup tools
+        uses: jdx/mise-action@v2
 
       - name: Run security audit (vet, race, govulncheck, gosec)
         run: make audit
@@ -31,27 +29,30 @@ jobs:
   test-shippy:
     name: "Test on Linux amd64"
     runs-on: ubuntu-24.04
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Full history + tags so scripts/get-version.sh can resolve the
+          # version via `git describe --tags` during `make build`.
+          fetch-depth: 0
+
+      - name: Setup tools
+        uses: jdx/mise-action@v2
+
+      - name: Build binary
+        shell: bash
+        env:
+          GOOS: linux
+          GOARCH: amd64
+        run: make build
 
       - name: Install dependencies
         uses: php-actions/composer@v6
         with:
           args: "--ignore-platform-reqs --optimize-autoloader"
           working_dir: "tests/typo3"
-
-      - name: Download Linux amd64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: shippy-linux-amd64
-          path: dist
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Make binary executable
         shell: bash
