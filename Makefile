@@ -32,7 +32,7 @@ build-release: ## Build release binaries for all platforms
 
 test: ## Run tests
 	@echo "Running tests..."
-	@bats tests/*.bats
+	@bats --filter-tags '!integration' tests/*.bats
 
 docker-test: ## Build Docker image and run tests inside it
 	@./scripts/docker-test.sh

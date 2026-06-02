@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"shippy/internal/ssh"
+	"github.com/ochorocho/shippy/internal/ssh"
 )
 
 // DownloadShared downloads specific files/directories from the remote server's

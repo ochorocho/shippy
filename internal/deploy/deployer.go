@@ -5,12 +5,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"shippy/internal/composer"
-	"shippy/internal/config"
-	"shippy/internal/lock"
-	"shippy/internal/rsync"
-	"shippy/internal/ssh"
-	"shippy/internal/ui"
+	"github.com/ochorocho/shippy/internal/composer"
+	"github.com/ochorocho/shippy/internal/config"
+	"github.com/ochorocho/shippy/internal/lock"
+	"github.com/ochorocho/shippy/internal/rsync"
+	"github.com/ochorocho/shippy/internal/ssh"
+	"github.com/ochorocho/shippy/internal/ui"
 )
 
 // defaultExcludePatterns contains patterns that should always be excluded from deployment

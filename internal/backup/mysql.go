@@ -11,7 +11,7 @@ import (
 
 	mysqldriver "github.com/go-sql-driver/mysql"
 
-	"shippy/internal/ssh"
+	"github.com/ochorocho/shippy/internal/ssh"
 )
 
 // dialerCounter ensures unique dialer names for concurrent use

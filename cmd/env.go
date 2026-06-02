@@ -6,7 +6,7 @@ import (
 	"sort"
 
 	"github.com/spf13/cobra"
-	"shippy/internal/ui"
+	"github.com/ochorocho/shippy/internal/ui"
 )
 
 var envCmd = &cobra.Command{

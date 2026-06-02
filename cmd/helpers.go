@@ -3,8 +3,8 @@ package cmd
 import (
 	"sort"
 
-	"shippy/internal/config"
-	"shippy/internal/ui"
+	"github.com/ochorocho/shippy/internal/config"
+	"github.com/ochorocho/shippy/internal/ui"
 )
 
 // selectHostFromArgs returns the host from args or prompts for interactive selection

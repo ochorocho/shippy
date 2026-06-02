@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"shippy/internal/ssh"
+	"github.com/ochorocho/shippy/internal/ssh"
 )
 
 const metadataFileName = ".shippy-release.json"

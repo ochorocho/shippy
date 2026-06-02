@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"shippy/internal/config"
-	"shippy/internal/ssh"
+	"github.com/ochorocho/shippy/internal/config"
+	"github.com/ochorocho/shippy/internal/ssh"
 )
 
 // LockInfo contains metadata about a deployment lock

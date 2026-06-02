@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"shippy/internal/errors"
-	"shippy/internal/ssh"
-	"shippy/internal/ui"
+	"github.com/ochorocho/shippy/internal/errors"
+	"github.com/ochorocho/shippy/internal/ssh"
+	"github.com/ochorocho/shippy/internal/ui"
 )
 
 // Syncer handles file synchronization over SSH

@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"shippy/internal/ui"
+	"github.com/ochorocho/shippy/internal/ui"
 
 	"github.com/spf13/cobra"
 )

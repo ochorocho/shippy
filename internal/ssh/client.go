@@ -12,7 +12,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"shippy/internal/errors"
+	"github.com/ochorocho/shippy/internal/errors"
 )
 
 // ClientOptions represents SSH client configuration options

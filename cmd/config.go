@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"shippy/internal/composer"
-	"shippy/internal/config"
-	"shippy/internal/ui"
+	"github.com/ochorocho/shippy/internal/composer"
+	"github.com/ochorocho/shippy/internal/config"
+	"github.com/ochorocho/shippy/internal/ui"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"

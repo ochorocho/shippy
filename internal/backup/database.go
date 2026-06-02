@@ -5,7 +5,7 @@ import (
 	"io"
 	"path/filepath"
 
-	"shippy/internal/ssh"
+	"github.com/ochorocho/shippy/internal/ssh"
 )
 
 // Dumper defines the interface for database-specific dump implementations

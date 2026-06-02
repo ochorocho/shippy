@@ -1,6 +1,6 @@
 package main
 
-import "shippy/cmd"
+import "github.com/ochorocho/shippy/cmd"
 
 func main() {
 	cmd.Execute()

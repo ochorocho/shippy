@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
 
-	"shippy/internal/ssh"
+	"github.com/ochorocho/shippy/internal/ssh"
 )
 
 // PostgresDumper dumps a PostgreSQL database through an SSH tunnel

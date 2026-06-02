@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"shippy/internal/config"
-	"shippy/internal/ssh"
-	"shippy/internal/ui"
+	"github.com/ochorocho/shippy/internal/config"
+	"github.com/ochorocho/shippy/internal/ssh"
+	"github.com/ochorocho/shippy/internal/ui"
 )
 
 // Backupper orchestrates the backup process

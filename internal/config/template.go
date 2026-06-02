@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"shippy/internal/composer"
+	"github.com/ochorocho/shippy/internal/composer"
 )
 
 var (

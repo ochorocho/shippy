@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"shippy/internal/composer"
-	"shippy/internal/deploy"
-	"shippy/internal/ui"
+	"github.com/ochorocho/shippy/internal/composer"
+	"github.com/ochorocho/shippy/internal/deploy"
+	"github.com/ochorocho/shippy/internal/ui"
 )
 
 var (

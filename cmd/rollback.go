@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"shippy/internal/deploy"
-	"shippy/internal/ssh"
-	"shippy/internal/ui"
+	"github.com/ochorocho/shippy/internal/deploy"
+	"github.com/ochorocho/shippy/internal/ssh"
+	"github.com/ochorocho/shippy/internal/ui"
 )
 
 var (

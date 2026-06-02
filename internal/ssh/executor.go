@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"shippy/internal/ui"
+	"github.com/ochorocho/shippy/internal/ui"
 )
 
 // Command represents a command to execute

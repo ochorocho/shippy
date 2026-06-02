@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"shippy/internal/ssh"
+	"github.com/ochorocho/shippy/internal/ssh"
 )
 
 // SQLiteDumper downloads a SQLite database file from the remote server

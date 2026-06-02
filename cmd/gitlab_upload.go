@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"shippy/internal/ui"
-	"shippy/internal/upload"
+	"github.com/ochorocho/shippy/internal/ui"
+	"github.com/ochorocho/shippy/internal/upload"
 )
 
 var (

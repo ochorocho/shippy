@@ -4,10 +4,10 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"shippy/internal/config"
-	"shippy/internal/lock"
-	"shippy/internal/ssh"
-	"shippy/internal/ui"
+	"github.com/ochorocho/shippy/internal/config"
+	"github.com/ochorocho/shippy/internal/lock"
+	"github.com/ochorocho/shippy/internal/ssh"
+	"github.com/ochorocho/shippy/internal/ui"
 )
 
 var unlockCmd = &cobra.Command{

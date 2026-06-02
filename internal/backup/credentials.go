@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"shippy/internal/config"
-	"shippy/internal/ssh"
+	"github.com/ochorocho/shippy/internal/config"
+	"github.com/ochorocho/shippy/internal/ssh"
 )
 
 //go:embed credentials.php
