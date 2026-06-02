@@ -26,16 +26,24 @@ fi
 VERSION="${TAG#v}"
 
 # Fetch and validate the published checksum for one architecture's binary.
+# Retries a few times: just-uploaded release assets can take a moment to
+# become downloadable from the releases/download/ CDN path.
 fetch_sum() {
     arch="$1"
     url="https://github.com/${REPO}/releases/download/${TAG}/shippy-${arch}.checksum"
-    echo "Fetching checksum: ${url}" >&2
-    sum=$(curl -fsSL "$url" | awk '{print $1}')
-    if ! printf '%s' "$sum" | grep -Eq '^[0-9a-f]{64}$'; then
-        echo "Invalid checksum for ${arch}: '${sum}'" >&2
-        exit 1
-    fi
-    printf '%s' "$sum"
+    attempt=1
+    while [ "$attempt" -le 5 ]; do
+        echo "Fetching checksum (attempt ${attempt}): ${url}" >&2
+        sum=$(curl -fsSL "$url" 2>/dev/null | awk '{print $1}' || true)
+        if printf '%s' "$sum" | grep -Eq '^[0-9a-f]{64}$'; then
+            printf '%s' "$sum"
+            return 0
+        fi
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+    echo "Could not fetch a valid checksum for ${arch} from ${url}" >&2
+    exit 1
 }
 
 SHA_DARWIN_AMD64=$(fetch_sum darwin-amd64)
