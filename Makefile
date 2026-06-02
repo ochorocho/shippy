@@ -1,12 +1,12 @@
-.PHONY: help build build-release test docker-test clean version
+.PHONY: help build build-release test docker-test clean version brew-formula
 
 # Version information
 VERSION := $(shell ./scripts/get-version.sh)
 GIT_COMMIT := $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
 BUILD_DATE := $(shell date -u '+%Y-%m-%d %H:%M:%S UTC')
-LDFLAGS := -X 'shippy/cmd.Version=$(VERSION)' \
-           -X 'shippy/cmd.GitCommit=$(GIT_COMMIT)' \
-           -X 'shippy/cmd.BuildDate=$(BUILD_DATE)'
+LDFLAGS := -X 'github.com/ochorocho/shippy/cmd.Version=$(VERSION)' \
+           -X 'github.com/ochorocho/shippy/cmd.GitCommit=$(GIT_COMMIT)' \
+           -X 'github.com/ochorocho/shippy/cmd.BuildDate=$(BUILD_DATE)'
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -36,6 +36,9 @@ test: ## Run tests
 
 docker-test: ## Build Docker image and run tests inside it
 	@./scripts/docker-test.sh
+
+brew-formula: ## Update Homebrew formula (Formula/shippy.rb) for the latest tag
+	@./scripts/update-formula.sh
 
 version: ## Show version that would be built
 	@echo "Version: $(VERSION)"
