@@ -26,6 +26,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Full history + tags so scripts/get-version.sh can resolve the
+          # release version from the tag via `git describe --tags`.
+          fetch-depth: 0
 
       - name: Setup tools
         uses: jdx/mise-action@v2
