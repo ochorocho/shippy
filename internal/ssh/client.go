@@ -296,7 +296,7 @@ func (c *Client) UploadFile(localPath, remotePath string, mode os.FileMode) erro
 
 	// Create remote directory if needed
 	remoteDir := filepath.Dir(remotePath)
-	if _, err := c.RunCommand(fmt.Sprintf("mkdir -p %s", remoteDir)); err != nil {
+	if _, err := c.RunCommand(fmt.Sprintf("mkdir -p %s", Quote(remoteDir))); err != nil {
 		return fmt.Errorf("failed to create remote directory: %w", err)
 	}
 
@@ -340,7 +340,7 @@ func (c *Client) UploadFile(localPath, remotePath string, mode os.FileMode) erro
 	}()
 
 	// Run SCP command
-	if err := session.Run(fmt.Sprintf("scp -t %s", remotePath)); err != nil {
+	if err := session.Run(fmt.Sprintf("scp -t %s", Quote(remotePath))); err != nil {
 		return fmt.Errorf("scp failed: %w", err)
 	}
 
@@ -354,7 +354,7 @@ func (c *Client) UploadFile(localPath, remotePath string, mode os.FileMode) erro
 
 // MkdirAll creates a directory and all parent directories on the remote server
 func (c *Client) MkdirAll(path string) error {
-	_, err := c.RunCommand(fmt.Sprintf("mkdir -p %s", path))
+	_, err := c.RunCommand(fmt.Sprintf("mkdir -p %s", Quote(path)))
 	return err
 }
 

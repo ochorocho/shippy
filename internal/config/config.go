@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -90,6 +91,13 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("no hosts defined in configuration")
 	}
 
+	// Global shared entries are reused across all hosts.
+	for i, shared := range c.Shared {
+		if err := validateShellSafe(shared, fmt.Sprintf("shared[%d]", i)); err != nil {
+			return err
+		}
+	}
+
 	for name, host := range c.Hosts {
 		if host.Hostname == "" {
 			return fmt.Errorf("host '%s': hostname is required", name)
@@ -101,8 +109,42 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("host '%s': deploy_path is required", name)
 		}
 		// rsync_src is now optional (has global default of ".")
+
+		// These values are interpolated into remote shell commands (always via
+		// ssh.Quote). Reject control characters that can never appear in a
+		// legitimate path/host and would only indicate a corrupt config or an
+		// injection attempt.
+		if err := validateShellSafe(host.Hostname, fmt.Sprintf("host '%s': hostname", name)); err != nil {
+			return err
+		}
+		if err := validateShellSafe(host.RemoteUser, fmt.Sprintf("host '%s': remote_user", name)); err != nil {
+			return err
+		}
+		if err := validateShellSafe(host.DeployPath, fmt.Sprintf("host '%s': deploy_path", name)); err != nil {
+			return err
+		}
+		if err := validateShellSafe(host.SSHKey, fmt.Sprintf("host '%s': ssh_key", name)); err != nil {
+			return err
+		}
+		for i, shared := range host.Shared {
+			if err := validateShellSafe(shared, fmt.Sprintf("host '%s': shared[%d]", name, i)); err != nil {
+				return err
+			}
+		}
 	}
 
+	return nil
+}
+
+// validateShellSafe rejects values containing control characters (NUL, newline,
+// carriage return). All such values are passed through ssh.Quote before being
+// sent to the remote shell, so this is defense-in-depth: a newline or NUL in a
+// path indicates a malformed config or a deliberate injection attempt and is
+// never legitimate, so we fail loudly at load time rather than silently.
+func validateShellSafe(value, field string) error {
+	if strings.ContainsAny(value, "\x00\n\r") {
+		return fmt.Errorf("%s contains illegal control characters (newline, carriage return or null byte)", field)
+	}
 	return nil
 }
 

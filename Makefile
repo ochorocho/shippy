@@ -1,4 +1,10 @@
-.PHONY: help build build-release test docker-test clean version brew-formula
+.PHONY: help build build-release test docker-test clean version brew-formula audit
+
+# Don't forward an inherited GOROOT to the go tools. Every go binary already
+# knows its own root; a stale/foreign GOROOT (e.g. exported by a version
+# manager for a different Go version than the one on PATH) is what causes
+# "compile: version ... does not match go tool version ..." failures.
+unexport GOROOT
 
 # Version information
 VERSION := $(shell ./scripts/get-version.sh)
@@ -36,6 +42,17 @@ test: ## Run tests
 
 docker-test: ## Build Docker image and run tests inside it
 	@./scripts/docker-test.sh
+
+audit: ## Run security audit (vet, race, govulncheck, gosec)
+	@echo "==> go vet"
+	@go vet ./...
+	@echo "==> go test -race"
+	@go test -race ./...
+	@echo "==> govulncheck (known CVEs in dependencies)"
+	@go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+	@echo "==> gosec (static security analysis)"
+	@go run github.com/securego/gosec/v2/cmd/gosec@latest -quiet ./...
+	@echo "✓ Audit complete"
 
 brew-formula: ## Update Homebrew formula (Formula/shippy.rb) for the latest tag
 	@./scripts/update-formula.sh

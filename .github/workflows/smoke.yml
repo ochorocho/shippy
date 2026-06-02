@@ -1,0 +1,56 @@
+name: Smoke Test (release artifact)
+
+# Runs after the Build workflow (push to main / version tags) and exercises the
+# exact binary that Build compiled and uploaded, rather than a freshly built
+# one. PR gating lives in test.yml; this is the post-merge artifact check.
+on:
+  workflow_run:
+    workflows: ["Build"]
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  smoke-test:
+    name: "Smoke test on Linux amd64"
+    runs-on: ubuntu-24.04
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        uses: php-actions/composer@v6
+        with:
+          args: "--ignore-platform-reqs --optimize-autoloader"
+          working_dir: "tests/typo3"
+
+      - name: Download Linux amd64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: shippy-linux-amd64
+          path: dist
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Make binary executable
+        shell: bash
+        run: chmod +x dist/shippy
+
+      - name: Set up Docker Compose
+        uses: docker/setup-compose-action@v1
+
+      - name: Setup Bats and Bats libs
+        id: setup-bats
+        run: |
+          sudo apt-get update && sudo apt-get install -y bats bats-assert bats-support bats-file
+
+      - name: Run Tests (Serial Execution)
+        shell: bash
+        run: make test
