@@ -202,6 +202,9 @@ jobs:
   update-formula:
     name: "Update Homebrew formula"
     runs-on: ubuntu-24.04
+    # Must run AFTER release-assets: the formula's per-arch sha256 values are
+    # read from the shippy-*.checksum release assets, which that job uploads.
+    needs: release-assets
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     permissions:
       contents: write
