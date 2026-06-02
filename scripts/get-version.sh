@@ -11,11 +11,14 @@ if [ -n "$SHIPPY_VERSION" ]; then
     exit 0
 fi
 
-# Try to get version from git tag
-if git describe --tags --exact-match 2>/dev/null; then
+# Try to get version from git tag.
+# NB: the command in an `if` condition still writes its stdout, so the describe
+# output must be suppressed there (>/dev/null) — otherwise the tag leaks into
+# the result and gets doubled with the value printed in the body.
+if git describe --tags --exact-match >/dev/null 2>&1; then
     # On a tagged commit, return tag without 'v' prefix
     git describe --tags --exact-match 2>/dev/null | sed 's/^v//'
-elif git describe --tags 2>/dev/null; then
+elif git describe --tags >/dev/null 2>&1; then
     # Near a tag, show tag-commits-hash format
     git describe --tags 2>/dev/null | sed 's/^v//'
 else
