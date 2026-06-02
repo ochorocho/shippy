@@ -1,0 +1,59 @@
+name: Formula
+
+# Pre-merge validation of the Homebrew formula. Runs on pull requests that
+# touch the formula (or the script that bumps it) and install-tests the
+# formula file *from the PR branch* — before it can ship.
+on:
+  pull_request:
+    paths:
+      - "Formula/shippy.rb"
+      - "scripts/update-formula.sh"
+      - ".github/workflows/formula.yml"
+  # Allow manual runs for ad-hoc verification.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  formula:
+    name: "Lint & install formula"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+
+      - name: Set up Homebrew
+        # ubuntu-latest ships Homebrew but not on PATH; this puts `brew` on PATH
+        # on both Linux and macOS runners.
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Lint formula style
+        run: brew style Formula/shippy.rb
+
+      - name: Stage PR formula into a local tap
+        # Modern Homebrew refuses to install a formula by file path; it must
+        # live in a tap. Copy the PR's formula into a throwaway local tap so
+        # the steps below exercise the exact file under review.
+        run: |
+          TAP_DIR="$(brew --repository)/Library/Taps/shippy/homebrew-ci"
+          mkdir -p "$TAP_DIR/Formula"
+          cp Formula/shippy.rb "$TAP_DIR/Formula/shippy.rb"
+
+      - name: Audit formula
+        # --online validates each per-arch url + sha256 actually resolves.
+        run: brew audit --online shippy/ci/shippy
+
+      - name: Install prebuilt binary (PR branch formula)
+        run: brew install shippy/ci/shippy
+
+      - name: Run formula test block
+        run: brew test shippy/ci/shippy
+
+      - name: Verify binary runs
+        run: shippy version

@@ -198,3 +198,83 @@ jobs:
             dist/shippy-darwin-arm64.checksum
             dist/shippy-linux-amd64.checksum
             dist/shippy-linux-arm64.checksum
+
+  update-formula:
+    name: "Update Homebrew formula"
+    runs-on: ubuntu-24.04
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve tag at release commit
+        id: resolve
+        run: |
+          TAG=$(git tag --points-at ${{ github.event.workflow_run.head_sha }} --sort=-creatordate \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          if [ -n "$TAG" ]; then
+            echo "Detected tag: $TAG"
+          else
+            echo "No matching v*.*.* tag at HEAD — skipping formula update"
+          fi
+
+      - name: Update formula
+        if: steps.resolve.outputs.tag != ''
+        run: ./scripts/update-formula.sh "${{ steps.resolve.outputs.tag }}"
+
+      - name: Commit and push formula
+        if: steps.resolve.outputs.tag != ''
+        run: |
+          if git diff --quiet -- Formula/shippy.rb; then
+            echo "Formula already up to date for ${{ steps.resolve.outputs.tag }}"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/shippy.rb
+          git commit -m "[TASK] Update Homebrew formula to ${{ steps.resolve.outputs.tag }}"
+          git push origin main
+
+  test-formula:
+    name: "Test Homebrew install"
+    needs: update-formula
+    if: ${{ needs.update-formula.outputs.tag != '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Set up Homebrew
+        # ubuntu-latest ships Homebrew but not on PATH; this puts `brew` on PATH
+        # on both Linux and macOS runners.
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Tap shippy
+        run: brew tap ochorocho/shippy https://github.com/ochorocho/shippy
+
+      - name: Install prebuilt binary
+        run: brew install ochorocho/shippy/shippy
+
+      - name: Run formula test block
+        run: brew test ochorocho/shippy/shippy
+
+      - name: Verify installed version
+        run: |
+          # Homebrew strips the leading "v" from the tag for the formula version.
+          EXPECTED="${{ needs.update-formula.outputs.tag }}"
+          EXPECTED="${EXPECTED#v}"
+          shippy version
+          shippy version | grep -F "$EXPECTED" \
+            || { echo "Installed binary does not report version $EXPECTED"; exit 1; }

@@ -19,6 +19,19 @@ based PHP projects, inspired by Deployer and Capistrano.
 
 ## Installation
 
+### Using Homebrew
+
+```bash
+brew tap ochorocho/shippy https://github.com/ochorocho/shippy
+brew install shippy
+```
+
+To upgrade later:
+
+```bash
+brew upgrade shippy
+```
+
 ### From Source
 
 ```bash
@@ -715,10 +728,18 @@ shippy/
 │   └── deploy/
 │       ├── deployer.go  # Main deployment orchestrator
 │       └── release.go   # Release management
+├── Formula/
+│   └── shippy.rb        # Homebrew formula (prebuilt binary, per arch)
+├── scripts/
+│   └── update-formula.sh # Bumps formula version + per-arch sha256 for a tag
 ├── main.go
 ├── go.mod
 └── README.md
 ```
+
+> **Maintainers:** after tagging a release, run `make brew-formula` to bump
+> `Formula/shippy.rb` to the latest tag (the Release workflow does this
+> automatically on tagged builds).
 
 ## Testing
 
