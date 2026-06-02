@@ -7,6 +7,10 @@ on:
   push:
     branches:
       - "main"
+    # Release chains off this workflow (Build -> Test -> Release), so Test must
+    # also run on version tags or tagged releases never reach the Release job.
+    tags:
+      - "v*.*.*"
 
 permissions:
   contents: read

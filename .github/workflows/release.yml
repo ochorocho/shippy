@@ -15,7 +15,9 @@ jobs:
   docker:
     name: "Build and push Docker image"
     runs-on: ubuntu-24.04
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # Only for push/tag-triggered Test runs; PR-triggered Test runs have no
+    # Build artifacts to download and must not start a release.
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
 
     steps:
       - name: Checkout
@@ -128,7 +130,7 @@ jobs:
   release-assets:
     name: "Attach binaries to GitHub Release"
     runs-on: ubuntu-24.04
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
     permissions:
       contents: write
       actions: read
@@ -205,7 +207,7 @@ jobs:
     # Must run AFTER release-assets: the formula's per-arch sha256 values are
     # read from the shippy-*.checksum release assets, which that job uploads.
     needs: release-assets
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
     permissions:
       contents: write
     outputs:
