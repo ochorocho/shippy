@@ -16,22 +16,22 @@ class Shippy < Formula
   on_macos do
     on_arm do
       url "https://github.com/ochorocho/shippy/releases/download/v0.0.4/shippy-darwin-arm64"
-      sha256 "095f081403e68e7eb07fc82c2304ff391cab7ec89e8a60c5ca50e795948a4f45"
+      sha256 "ad17f452b79dd488ea6354f6fd8bdb55af2f080ccecd276e39b9ee1c6ac5771a"
     end
     on_intel do
       url "https://github.com/ochorocho/shippy/releases/download/v0.0.4/shippy-darwin-amd64"
-      sha256 "308fe251ce5e84c5cd30906eb843678811827080ee89bd20d01e21d6a38df5af"
+      sha256 "6c978669e21abb0ef3ff041e01d358e28ac48b0d61f1a780d1a2d98af0f355a0"
     end
   end
 
   on_linux do
     on_arm do
       url "https://github.com/ochorocho/shippy/releases/download/v0.0.4/shippy-linux-arm64"
-      sha256 "636b9c51173d9a4057feb00fcee6bf6deb830c913dd1e46fb0d7166aa6d2378c"
+      sha256 "6aefd2bdf81da802fe281c91caebe955f545d2cf88007ded3f44329245a512e8"
     end
     on_intel do
       url "https://github.com/ochorocho/shippy/releases/download/v0.0.4/shippy-linux-amd64"
-      sha256 "3bc18c95d4a62005cd2e8e8114d24b5121c2c832f182df41f4c78d5cbe555bb1"
+      sha256 "ad5d7875e8ae626307002c576d2f21bbadf1fe56be9b14ce776de4f77bff5e49"
     end
   end
 
