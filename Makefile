@@ -1,5 +1,11 @@
 .PHONY: help build build-release test docker-test clean version brew-formula audit
 
+# Don't forward an inherited GOROOT to the go tools. Every go binary already
+# knows its own root; a stale/foreign GOROOT (e.g. exported by a version
+# manager for a different Go version than the one on PATH) is what causes
+# "compile: version ... does not match go tool version ..." failures.
+unexport GOROOT
+
 # Version information
 VERSION := $(shell ./scripts/get-version.sh)
 GIT_COMMIT := $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")

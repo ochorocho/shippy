@@ -20,16 +20,23 @@ type LockInfo struct {
 	PID       int       `json:"pid"`
 }
 
+// commandRunner is the subset of *ssh.Client that the locker needs. Defining
+// it as an interface lets tests drive the locker with a fake that records the
+// exact remote commands, without a live SSH connection.
+type commandRunner interface {
+	RunCommand(cmd string) (string, error)
+}
+
 // Locker handles deployment locking on the remote server
 type Locker struct {
-	client     *ssh.Client
+	client     commandRunner
 	deployPath string
 	timeout    time.Duration
 	lockPath   string
 }
 
 // NewLocker creates a new deployment locker
-func NewLocker(client *ssh.Client, deployPath string, timeout time.Duration) *Locker {
+func NewLocker(client commandRunner, deployPath string, timeout time.Duration) *Locker {
 	if timeout == 0 {
 		timeout = time.Duration(config.DefaultLockTimeoutMinutes) * time.Minute // Default like Capistrano
 	}

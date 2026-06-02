@@ -2,6 +2,7 @@ package rsync
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -10,16 +11,25 @@ import (
 	"github.com/ochorocho/shippy/internal/ui"
 )
 
+// remoteClient is the subset of *ssh.Client the syncer needs. As an interface
+// it lets tests assert the exact remote commands (and their shell quoting)
+// using fabricated file lists and a recording fake, with no SSH connection.
+type remoteClient interface {
+	RunCommand(cmd string) (string, error)
+	MkdirAll(path string) error
+	UploadFile(localPath, remotePath string, mode os.FileMode) error
+}
+
 // Syncer handles file synchronization over SSH
 type Syncer struct {
-	client     *ssh.Client
+	client     remoteClient
 	remotePath string
 	verbose    bool
 	deployPath string // Base deploy path for cache directory
 }
 
 // NewSyncer creates a new file syncer
-func NewSyncer(client *ssh.Client, remotePath string, verbose bool, deployPath string) *Syncer {
+func NewSyncer(client remoteClient, remotePath string, verbose bool, deployPath string) *Syncer {
 	return &Syncer{
 		client:     client,
 		remotePath: remotePath,

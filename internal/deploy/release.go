@@ -11,14 +11,22 @@ import (
 	"github.com/ochorocho/shippy/internal/ssh"
 )
 
+// commandRunner is the subset of *ssh.Client used by the release manager and
+// the release-metadata helpers. As an interface it lets tests assert the exact
+// remote commands (and their shell quoting) without a live SSH connection.
+type commandRunner interface {
+	RunCommand(cmd string) (string, error)
+	MkdirAll(path string) error
+}
+
 // ReleaseManager manages release directories on the remote server
 type ReleaseManager struct {
-	client     *ssh.Client
+	client     commandRunner
 	deployPath string
 }
 
 // NewReleaseManager creates a new release manager
-func NewReleaseManager(client *ssh.Client, deployPath string) *ReleaseManager {
+func NewReleaseManager(client commandRunner, deployPath string) *ReleaseManager {
 	return &ReleaseManager{
 		client:     client,
 		deployPath: deployPath,
