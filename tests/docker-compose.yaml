@@ -10,12 +10,15 @@ services:
     volumes:
       - ./www:/var/www/html:rw
     depends_on:
-      - typo3-shippy-mariadb
+      typo3-shippy-mariadb:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "sh", "-c", "ss -ltn | grep ':22' || exit 1"]
+      # Probe the SSH port via bash's /dev/tcp (no iproute2/ss in the image).
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/127.0.0.1/22"]
       interval: 5s
       timeout: 3s
-      retries: 5
+      retries: 10
+      start_period: 10s
   typo3-shippy-mariadb:
     image: mariadb:10.11
     environment:
@@ -25,3 +28,11 @@ services:
       MYSQL_TCP_PORT: 3308
       MYSQL_ROOT_PASSWORD: db
     container_name: typo3-shippy-mariadb
+    healthcheck:
+      # Wait until MariaDB actually accepts connections before deploys run
+      # `typo3 setup`, otherwise the install fails with "Connection refused".
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 15s

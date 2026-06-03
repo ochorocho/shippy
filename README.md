@@ -487,9 +487,11 @@ backup:
 
   database:
     # How database credentials are obtained:
-    #   auto    - try standard .env, then TYPO3 .env keys, then TYPO3 settings.php (default)
+    #   auto    - try `typo3 configuration:show` (TYPO3 v14+), then standard .env,
+    #             then TYPO3 .env keys, then TYPO3 settings.php (default)
     #   dotenv  - read DB_HOST, DB_DATABASE, DB_USERNAME, DB_PASSWORD, ... from .env
-    #   typo3   - read TYPO3-specific .env keys or settings.php
+    #   typo3   - try `typo3 configuration:show` (TYPO3 v14+), then TYPO3-specific
+    #             .env keys or settings.php
     #   manual  - use the explicit driver/host/port/name/user/password fields below
     credentials: auto
 
@@ -514,6 +516,8 @@ backup:
       # charset: "utf8mb4"         # MySQL
       # schema: "public"           # PostgreSQL
 ```
+
+With `credentials: auto` or `typo3`, Shippy first runs `./vendor/bin/typo3 configuration:show DB/Connections/Default` (available in TYPO3 v14+) to read the authoritative active database configuration. If the command is unavailable — older TYPO3, a non-bootstrappable app, or a non-TYPO3 project — it falls back to parsing `.env` keys and `config/system/settings.php` / legacy `typo3conf/LocalConfiguration.php`.
 
 Per-host overrides are supported by adding a `backup:` block inside a `hosts.<name>:` entry — useful when staging and production need different exclude tables or output directories.
 

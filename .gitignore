@@ -37,3 +37,7 @@ tests/typo3/*
 !tests/typo3/config
 !tests/typo3/composer.json
 !tests/typo3/.shippy.yaml
+tests/typo3-v14/*
+!tests/typo3-v14/config
+!tests/typo3-v14/composer.json
+!tests/typo3-v14/.shippy.yaml
