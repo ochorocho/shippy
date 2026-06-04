@@ -146,7 +146,7 @@ func (s *Syncer) Sync(files []FileInfo) error {
 
 	// Use rsync on the remote server to copy from cache to release
 	// --delete removes files that only exist in release (not in cache)
-	copyCmd := fmt.Sprintf("rsync -a --delete %s/ %s/", ssh.Quote(cachePath), ssh.Quote(s.remotePath))
+	copyCmd := fmt.Sprintf("rsync -rlt --no-perms --delete %s/ %s/", ssh.Quote(cachePath), ssh.Quote(s.remotePath))
 	output, err := s.client.RunCommand(copyCmd)
 	if err != nil {
 		return fmt.Errorf("failed to copy from cache to release: %w (output: %s)", err, output)
