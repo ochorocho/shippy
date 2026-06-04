@@ -98,7 +98,7 @@ func TestSyncQuotesRemoteCommands(t *testing.T) {
 	if !f.saw("rm -f '/srv/my app/.cache/old data.txt'") {
 		t.Errorf("expected quoted deletion of stale cache file, commands: %v", f.commands)
 	}
-	if !f.saw("rsync -a --delete '/srv/my app/.cache'/ '/srv/my app/releases/20240105120000'/") {
+	if !f.saw("rsync -rlt --no-perms --delete '/srv/my app/.cache'/ '/srv/my app/releases/20240105120000'/") {
 		t.Errorf("expected quoted rsync copy, commands: %v", f.commands)
 	}
 
@@ -144,6 +144,54 @@ func TestSyncSkipsUnchangedFiles(t *testing.T) {
 	}
 	if f.saw("rm -f") {
 		t.Errorf("expected no deletions, commands: %v", f.commands)
+	}
+}
+
+// TestSyncCacheToReleaseFlags verifies that the remote rsync command used to
+// promote the cache into the release directory never sets file permissions from
+// the source tree. Server permissions are owned by the server (default ACLs,
+// umask) not by the deploying machine; mirroring source permissions via -a or
+// --perms would silently override those ACLs and break group-write access for
+// the web server process.
+func TestSyncCacheToReleaseFlags(t *testing.T) {
+	var rsyncCmd string
+	f := &fakeClient{respond: func(cmd string) (string, error) {
+		if strings.Contains(cmd, "rsync") {
+			rsyncCmd = cmd
+		}
+		return "", nil
+	}}
+
+	s := NewSyncer(f, spacedDeploy+"/releases/20240105120000", false, spacedDeploy)
+	files := []FileInfo{
+		{RelPath: "index.php", FullPath: "/local/index.php", Size: 1, Mode: 0o644, ModTime: time.Unix(1000, 0)},
+	}
+	if err := s.Sync(files); err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+
+	if rsyncCmd == "" {
+		t.Fatal("no rsync command was issued")
+	}
+
+	// --no-perms must be present so chmod() is never called on transferred files.
+	if !strings.Contains(rsyncCmd, "--no-perms") {
+		t.Errorf("rsync command must contain --no-perms to let server ACLs govern permissions, got: %s", rsyncCmd)
+	}
+
+	// -a (archive) implies -p/--perms which calls chmod() and overrides default
+	// ACLs. Neither form must appear in the command.
+	for _, forbidden := range []string{"-a ", "-a\t", " -a\n", "--archive", "--perms", " -p "} {
+		if strings.Contains(rsyncCmd, forbidden) {
+			t.Errorf("rsync command must not contain %q (would mirror source permissions and override server ACLs), got: %s", forbidden, rsyncCmd)
+		}
+	}
+
+	// Recursive, links, and timestamps must be preserved.
+	for _, required := range []string{"-rlt", "--delete"} {
+		if !strings.Contains(rsyncCmd, required) {
+			t.Errorf("rsync command must contain %q, got: %s", required, rsyncCmd)
+		}
 	}
 }
 
