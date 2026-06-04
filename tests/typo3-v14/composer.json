@@ -1,0 +1,34 @@
+{
+  "name": "typo3/shippy-test-v14",
+  "description": "Shippy TYPO3 v14 integration fixture",
+  "license": "GPL-2.0-or-later",
+  "type": "project",
+  "config": {
+    "bin-dir": "vendor/bin",
+    "allow-plugins": {
+      "helhum/dotenv-connector": true,
+      "typo3/class-alias-loader": true,
+      "typo3/cms-composer-installers": true
+    },
+    "platform": {
+      "php": "8.4"
+    },
+    "sort-packages": true
+  },
+  "require": {
+    "typo3/cms-backend": "^14.0",
+    "typo3/cms-belog": "^14.0",
+    "typo3/cms-beuser": "^14.0",
+    "typo3/cms-core": "^14.0",
+    "typo3/cms-dashboard": "^14.0",
+    "typo3/cms-extbase": "^14.0",
+    "typo3/cms-extensionmanager": "^14.0",
+    "typo3/cms-filelist": "^14.0",
+    "typo3/cms-fluid": "^14.0",
+    "typo3/cms-fluid-styled-content": "^14.0",
+    "typo3/cms-install": "^14.0",
+    "typo3/cms-lowlevel": "^14.0",
+    "typo3/cms-seo": "^14.0",
+    "typo3/cms-setup": "^14.0"
+  }
+}

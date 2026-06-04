@@ -114,6 +114,73 @@ func TestNormalizeDriver(t *testing.T) {
 	}
 }
 
+func TestParseConsoleCredentials(t *testing.T) {
+	tests := []struct {
+		name    string
+		output  string
+		wantErr bool
+		want    DatabaseCredentials
+	}{
+		{
+			name:   "typical v14 output",
+			output: `{"charset":"utf8mb4","dbname":"app","driver":"mysqli","host":"db","password":"secret","port":3306,"user":"app_user"}`,
+			want: DatabaseCredentials{
+				Driver:   "mysql",
+				Host:     "db",
+				Port:     3306,
+				Name:     "app",
+				User:     "app_user",
+				Password: "secret",
+			},
+		},
+		{
+			name:   "json wrapped in surrounding noise",
+			output: "PHP Deprecated: something\n{\"dbname\":\"app\",\"driver\":\"pdo_pgsql\",\"host\":\"127.0.0.1\",\"port\":5432,\"user\":\"u\",\"password\":\"p\"}\n",
+			want: DatabaseCredentials{
+				Driver:   "postgresql",
+				Host:     "127.0.0.1",
+				Port:     5432,
+				Name:     "app",
+				User:     "u",
+				Password: "p",
+			},
+		},
+		{
+			name:    "missing dbname",
+			output:  `{"driver":"mysqli","host":"db","port":3306}`,
+			wantErr: true,
+		},
+		{
+			name:    "empty output",
+			output:  "",
+			wantErr: true,
+		},
+		{
+			name:    "no json object",
+			output:  "Command \"configuration:show\" is not defined.",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseConsoleCredentials(tt.output)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("parseConsoleCredentials(%q) expected error, got nil", tt.output)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseConsoleCredentials(%q) unexpected error: %v", tt.output, err)
+			}
+			if *got != tt.want {
+				t.Errorf("parseConsoleCredentials(%q) = %+v, want %+v", tt.output, *got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFormatMySQLValue(t *testing.T) {
 	tests := []struct {
 		name  string

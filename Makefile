@@ -1,4 +1,4 @@
-.PHONY: help build build-release test docker-test clean version brew-formula audit
+.PHONY: help build build-release test test-integration docker-test clean version brew-formula audit
 
 # Don't forward an inherited GOROOT to the go tools. Every go binary already
 # knows its own root; a stale/foreign GOROOT (e.g. exported by a version
@@ -36,9 +36,13 @@ build-release: ## Build release binaries for all platforms
 	@echo "✓ Built all release binaries"
 	@ls -lh dist/
 
-test: ## Run tests
-	@echo "Running tests..."
+test: ## Run quick tests (no Docker required)
+	@echo "Running quick tests..."
 	@bats --filter-tags '!integration' tests/*.bats
+
+test-integration: ## Run integration tests (requires Docker + installed fixtures)
+	@echo "Running integration tests..."
+	@bats --filter-tags 'integration' tests/*.bats
 
 docker-test: ## Build Docker image and run tests inside it
 	@./scripts/docker-test.sh

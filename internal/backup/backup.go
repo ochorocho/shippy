@@ -94,12 +94,12 @@ func (b *Backupper) Backup(skipDatabase, skipShared bool, outputOverride string)
 			out.StepNumber(stepNum, "Extracting database credentials")
 			stepNum++
 
-			creds, err := ExtractCredentials(client, b.host.DeployPath, dbConfig)
+			creds, credSource, err := ExtractCredentials(client, b.host.DeployPath, dbConfig)
 			if err != nil {
 				return "", fmt.Errorf("failed to extract database credentials: %w", err)
 			}
 
-			out.Success("Database: %s (%s@%s:%d/%s)", creds.Driver, creds.User, creds.Host, creds.Port, creds.Name)
+			out.Success("Database: %s (%s@%s:%d/%s) via %s", creds.Driver, creds.User, creds.Host, creds.Port, creds.Name, credSource)
 
 			out.StepNumber(stepNum, "Dumping database")
 			stepNum++

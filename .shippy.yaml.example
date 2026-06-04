@@ -81,11 +81,18 @@ backup:
 
   database:
     # How to obtain credentials: "auto" (default), "dotenv", "typo3", "manual"
-    # auto:   tries .env keys, TYPO3 .env keys, then TYPO3 settings.php
+    # auto:   tries `typo3 configuration:show` (TYPO3 v14+), then .env keys,
+    #         TYPO3 .env keys, then TYPO3 settings.php
     # dotenv: reads standard .env keys (DB_HOST, DB_DATABASE, etc.)
-    # typo3:  reads TYPO3-specific .env keys or settings.php
+    # typo3:  tries `typo3 configuration:show` (TYPO3 v14+), then TYPO3-specific
+    #         .env keys or settings.php
     # manual: uses the driver/host/port/name/user/password fields below
     # credentials: auto
+    #
+    # When available, "auto"/"typo3" run
+    # ./vendor/bin/typo3 configuration:show DB/Connections/Default
+    # to read the authoritative database configuration, falling back to
+    # .env / settings.php parsing if the command is unavailable.
 
     # Manual database credentials (used when credentials: manual)
     # Supports environment variables: ${DB_PASSWORD}
