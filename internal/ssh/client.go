@@ -25,6 +25,7 @@ type ClientOptions struct {
 	SSHMultiplexing    bool
 	KnownHostsFile     string
 	HostKeyFingerprint string
+	ProxyCommand       string // optional: shell command to establish TCP transport (e.g. "/usr/bin/nc %h %p")
 }
 
 // Client represents an SSH client connection
@@ -36,6 +37,7 @@ type Client struct {
 	user               string
 	options            map[string]string
 	multiplexing       bool
+	proxyCommand       string
 	keepaliveInterval  time.Duration
 	keepaliveCountMax  int
 	keepaliveStopChan  chan struct{}
@@ -53,6 +55,14 @@ func NewClient(host, user, keyPath string) (*Client, error) {
 
 // NewClientWithOptions creates a new SSH client with full options
 func NewClientWithOptions(opts ClientOptions) (*Client, error) {
+	// Extract ProxyCommand from ssh_options if set there (takes precedence over SSH config)
+	if opts.ProxyCommand == "" && opts.SSHOptions != nil {
+		opts.ProxyCommand = opts.SSHOptions["ProxyCommand"]
+	}
+
+	// Apply ~/.ssh/config as defaults; .shippy.yaml values already set take precedence.
+	applySSHConfig(&opts)
+
 	// Set default port if not specified
 	if opts.Port == 0 {
 		opts.Port = DefaultSSHPort
@@ -129,6 +139,9 @@ func NewClientWithOptions(opts ClientOptions) (*Client, error) {
 	// Print SSH connection information
 	fmt.Fprintf(os.Stderr, "  SSH connection details:\n")
 	fmt.Fprintf(os.Stderr, "  • Target: %s@%s:%d\n", opts.User, opts.Host, opts.Port)
+	if opts.ProxyCommand != "" {
+		fmt.Fprintf(os.Stderr, "  • ProxyCommand: %s\n", opts.ProxyCommand)
+	}
 	fmt.Fprintf(os.Stderr, "  • SSH key: %s\n", keyPath)
 
 	// Create host key callback with proper verification
@@ -193,6 +206,7 @@ func NewClientWithOptions(opts ClientOptions) (*Client, error) {
 		user:              opts.User,
 		options:           opts.SSHOptions,
 		multiplexing:      opts.SSHMultiplexing,
+		proxyCommand:      opts.ProxyCommand,
 		keepaliveInterval: keepaliveInterval,
 		keepaliveCountMax: keepaliveCountMax,
 	}, nil
@@ -200,20 +214,34 @@ func NewClientWithOptions(opts ClientOptions) (*Client, error) {
 
 // Connect establishes the SSH connection
 func (c *Client) Connect() error {
-	// Build address with port
 	addr := fmt.Sprintf("%s:%d", c.host, c.port)
 
-	client, err := ssh.Dial("tcp", addr, c.config)
-	if err != nil {
-		return errors.SSHError(fmt.Sprintf("connecting to %s@%s", c.user, addr), err)
+	var client *ssh.Client
+
+	if c.proxyCommand != "" {
+		// ProxyCommand: let a trusted system binary own the TCP socket.
+		// The SSH handshake runs over the subprocess's stdio so network security
+		// agents (e.g. corporate endpoint protection) see a trusted binary
+		// making the connection rather than the Go runtime's direct syscalls.
+		conn, err := dialProxy(c.proxyCommand, c.host, c.port)
+		if err != nil {
+			return errors.SSHError(fmt.Sprintf("connecting to %s@%s via ProxyCommand", c.user, addr), err)
+		}
+		sshConn, chans, reqs, err := ssh.NewClientConn(conn, addr, c.config)
+		if err != nil {
+			_ = conn.Close()
+			return errors.SSHError(fmt.Sprintf("SSH handshake with %s@%s", c.user, addr), err)
+		}
+		client = ssh.NewClient(sshConn, chans, reqs)
+	} else {
+		var err error
+		client, err = ssh.Dial("tcp", addr, c.config)
+		if err != nil {
+			return errors.SSHError(fmt.Sprintf("connecting to %s@%s", c.user, addr), err)
+		}
 	}
 
 	c.client = client
-
-	// When multiplexing is enabled, the underlying TCP connection is reused
-	// for all sessions (NewSession calls). The golang.org/x/crypto/ssh library
-	// handles this automatically - each session multiplexes over the same connection.
-	// No additional configuration needed beyond keeping the client alive.
 
 	// Start keepalive goroutine if configured
 	if c.keepaliveInterval > 0 {
