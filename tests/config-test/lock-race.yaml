@@ -1,0 +1,19 @@
+# Minimal, fast config for the concurrent-deploy lock race test.
+# No TYPO3 setup — a single trivial command keeps the lock held briefly so two
+# simultaneous deploys genuinely contend for the deployment lock.
+rsync_src: .
+keep_releases: 2
+
+commands:
+  - name: Hold the lock briefly
+    run: sleep 2
+
+hosts:
+  production:
+    hostname: 127.0.0.1
+    port: 2424
+    remote_user: root
+    deploy_path: /var/www/html
+    ssh_key: ../ssh_keys/shippy_key
+    ssh_options:
+      StrictHostKeyChecking: accept-new
