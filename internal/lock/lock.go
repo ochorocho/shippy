@@ -1,6 +1,8 @@
 package lock
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,6 +13,13 @@ import (
 	"github.com/ochorocho/shippy/internal/ssh"
 )
 
+const acquireMaxAttempts = 5
+
+// lockRetryBackoff is how long Acquire waits before re-checking a lock whose
+// metadata is not yet readable (another deploy is mid-acquire between creating
+// the lock directory and writing info.json).
+const lockRetryBackoff = 100 * time.Millisecond
+
 // LockInfo contains metadata about a deployment lock
 type LockInfo struct {
 	LockedBy  string    `json:"locked_by"`
@@ -18,6 +27,7 @@ type LockInfo struct {
 	ExpiresAt time.Time `json:"expires_at"`
 	Message   string    `json:"message"`
 	PID       int       `json:"pid"`
+	Token     string    `json:"token"` // set per acquire; Release only removes the lock when it matches
 }
 
 // commandRunner is the subset of *ssh.Client that the locker needs. Defining
@@ -32,7 +42,10 @@ type Locker struct {
 	client     commandRunner
 	deployPath string
 	timeout    time.Duration
-	lockPath   string
+	shippyDir  string
+	lockDir    string
+	infoPath   string
+	token      string
 }
 
 // NewLocker creates a new deployment locker
@@ -41,131 +54,204 @@ func NewLocker(client commandRunner, deployPath string, timeout time.Duration) *
 		timeout = time.Duration(config.DefaultLockTimeoutMinutes) * time.Minute // Default like Capistrano
 	}
 
+	shippyDir := deployPath + "/.shippy"
+	lockDir := shippyDir + "/deploy.lock"
+
 	return &Locker{
 		client:     client,
 		deployPath: deployPath,
 		timeout:    timeout,
-		lockPath:   deployPath + "/.shippy/deploy.lock",
+		shippyDir:  shippyDir,
+		lockDir:    lockDir,
+		infoPath:   lockDir + "/info.json",
+		token:      newToken(),
 	}
+}
+
+func newToken() string {
+	hostname, _ := os.Hostname()
+	var randomBytes [8]byte
+	// #nosec G104 -- a short read is impossible; a zero suffix is still usable.
+	_, _ = rand.Read(randomBytes[:])
+	return fmt.Sprintf("%s-%d-%d-%s", hostname, os.Getpid(), time.Now().UnixNano(), hex.EncodeToString(randomBytes[:]))
 }
 
 // Acquire attempts to acquire the deployment lock
 func (l *Locker) Acquire(message string) error {
-	// Check if lock exists and is still valid
-	locked, info, err := l.IsLocked()
-	if err != nil {
-		return fmt.Errorf("failed to check lock status: %w", err)
+	var lastCreateFailure string
+
+	for attempt := 0; attempt < acquireMaxAttempts; attempt++ {
+		created, output, err := l.tryCreate(message)
+		if err != nil {
+			return err
+		}
+		if created {
+			return nil
+		}
+
+		exists, err := l.lockDirExists()
+		if err != nil {
+			return err
+		}
+		if !exists {
+			// mkdir failed but nothing is there: either the lock was released
+			// between the create and this probe (a retry then wins) or the
+			// create genuinely failed (permissions, full disk). Retry; if every
+			// attempt fails this way, surface the real create output below.
+			lastCreateFailure = strings.TrimSpace(output)
+			continue
+		}
+		lastCreateFailure = ""
+
+		info, err := l.readInfo()
+		switch {
+		case err == nil && info != nil && time.Now().Before(info.ExpiresAt):
+			// A valid lock is held.
+			return l.lockedError(info)
+		case err == nil && info != nil:
+			// Expired: steal it atomically and retry.
+			l.steal()
+		default:
+			// Metadata not yet readable: another deploy is mid-acquire between
+			// creating the directory and writing info.json. Wait and re-check
+			// rather than stealing a lock that was just legitimately taken.
+			time.Sleep(lockRetryBackoff)
+		}
 	}
 
-	if locked {
-		// Lock exists and is not expired
-		timeLeft := time.Until(info.ExpiresAt)
-		minutesLeft := int(timeLeft.Minutes())
-
-		return fmt.Errorf("deployment is locked\n\n"+
-			"  Locked by: %s\n"+
-			"  Locked at: %s\n"+
-			"  Expires:   %s (in %d minutes)\n"+
-			"  Message:   %s\n\n"+
-			"To unlock manually, run:\n"+
-			"  shippy unlock\n\n"+
-			"Or wait for automatic expiry in %d minutes.",
-			info.LockedBy,
-			info.LockedAt.Format("2006-01-02 15:04:05"),
-			info.ExpiresAt.Format("2006-01-02 15:04:05"),
-			minutesLeft,
-			info.Message,
-			minutesLeft,
-		)
+	if lastCreateFailure != "" {
+		return fmt.Errorf("failed to create deployment lock: %s", lastCreateFailure)
 	}
+	return fmt.Errorf("could not acquire deployment lock after %d attempts", acquireMaxAttempts)
+}
 
-	// Create lock
+// tryCreate attempts the atomic create. It returns (true, "", nil) when this
+// process won the lock and (false, output, nil) when the create command failed
+// (the caller inspects whether lockDir exists to tell contention from a real
+// failure). The error return is only for a local failure (marshalling).
+func (l *Locker) tryCreate(message string) (bool, string, error) {
 	hostname, _ := os.Hostname()
 	username := os.Getenv("USER")
 	if username == "" {
 		username = "unknown"
 	}
 
+	now := time.Now()
 	lockInfo := LockInfo{
 		LockedBy:  fmt.Sprintf("%s@%s", username, hostname),
-		LockedAt:  time.Now(),
-		ExpiresAt: time.Now().Add(l.timeout),
+		LockedAt:  now,
+		ExpiresAt: now.Add(l.timeout),
 		Message:   message,
 		PID:       os.Getpid(),
+		Token:     l.token,
 	}
 
-	// Marshal to JSON
 	data, err := json.MarshalIndent(lockInfo, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal lock info: %w", err)
+		return false, "", fmt.Errorf("failed to marshal lock info: %w", err)
 	}
 
-	// Ensure .shippy directory exists
-	shippyDir := l.deployPath + "/.shippy"
-	if _, err := l.client.RunCommand(fmt.Sprintf("mkdir -p %s", ssh.Quote(shippyDir))); err != nil {
-		return fmt.Errorf("failed to create .shippy directory: %w", err)
-	}
+	// One command, narrowing the window with a lock dir but no info.json: mkdir
+	// (no -p, so it fails if another racer won) then write the metadata. The
+	// quoted 'EOF' stops the shell expanding the JSON; only paths are quoted.
+	cmd := fmt.Sprintf("mkdir -p %s && mkdir %s && cat > %s << 'EOF'\n%s\nEOF",
+		ssh.Quote(l.shippyDir), ssh.Quote(l.lockDir), ssh.Quote(l.infoPath), string(data))
 
-	// Write lock file. The heredoc body is JSON delimited by a quoted 'EOF'
-	// marker, so the shell performs no expansion on it; only lockPath is
-	// interpolated as a shell word and must be quoted.
-	cmd := fmt.Sprintf("cat > %s << 'EOF'\n%s\nEOF", ssh.Quote(l.lockPath), string(data))
-	if _, err := l.client.RunCommand(cmd); err != nil {
-		return fmt.Errorf("failed to create lock file: %w", err)
+	if output, err := l.client.RunCommand(cmd); err != nil {
+		return false, output, nil
 	}
-
-	return nil
+	return true, "", nil
 }
 
-// Release removes the deployment lock
-func (l *Locker) Release() error {
-	cmd := fmt.Sprintf("rm -f %s", ssh.Quote(l.lockPath))
-	_, err := l.client.RunCommand(cmd)
-	// Ignore errors - lock might not exist
-	return err
-}
-
-// IsLocked checks if a valid (non-expired) lock exists
-func (l *Locker) IsLocked() (bool, *LockInfo, error) {
-	// Check if lock file exists
-	output, err := l.client.RunCommand(fmt.Sprintf("cat %s 2>/dev/null || echo ''", ssh.Quote(l.lockPath)))
+// lockDirExists reports whether the lock directory currently exists.
+func (l *Locker) lockDirExists() (bool, error) {
+	output, err := l.client.RunCommand(fmt.Sprintf("[ -d %s ] && echo yes || echo no", ssh.Quote(l.lockDir)))
 	if err != nil {
-		// Command failed but we got output - parse it anyway
+		return false, fmt.Errorf("failed to check lock directory: %w", err)
+	}
+	return strings.TrimSpace(output) == "yes", nil
+}
+
+// steal renames the existing lock dir away, then removes it. rename is atomic,
+// so exactly one racer wins; losers' rename fails harmlessly and they retry.
+func (l *Locker) steal() {
+	stalePath := l.lockDir + ".stale." + l.token
+	if _, err := l.client.RunCommand(fmt.Sprintf("mv %s %s", ssh.Quote(l.lockDir), ssh.Quote(stalePath))); err != nil {
+		return
+	}
+	_, _ = l.client.RunCommand(fmt.Sprintf("rm -rf %s", ssh.Quote(stalePath)))
+}
+
+func (l *Locker) lockedError(info *LockInfo) error {
+	minutesLeft := int(time.Until(info.ExpiresAt).Minutes())
+	return fmt.Errorf("deployment is locked\n\n"+
+		"  Locked by: %s\n"+
+		"  Locked at: %s\n"+
+		"  Expires:   %s (in %d minutes)\n"+
+		"  Message:   %s\n\n"+
+		"To unlock manually, run:\n"+
+		"  shippy unlock\n\n"+
+		"Or wait for automatic expiry in %d minutes.",
+		info.LockedBy,
+		info.LockedAt.Format("2006-01-02 15:04:05"),
+		info.ExpiresAt.Format("2006-01-02 15:04:05"),
+		minutesLeft,
+		info.Message,
+		minutesLeft,
+	)
+}
+
+// readInfo returns (nil, nil) when no metadata exists and (nil, err) when it is
+// present but unparseable.
+func (l *Locker) readInfo() (*LockInfo, error) {
+	output, err := l.client.RunCommand(fmt.Sprintf("cat %s 2>/dev/null || echo ''", ssh.Quote(l.infoPath)))
+	if err != nil {
 		output = strings.TrimSpace(output)
 		if output == "" {
-			// No lock file exists
-			return false, nil, nil
+			return nil, nil
 		}
 	}
 
 	output = strings.TrimSpace(output)
 	if output == "" {
-		// No lock file exists
-		return false, nil, nil
+		return nil, nil
 	}
 
-	// Parse lock file
 	var info LockInfo
 	if err := json.Unmarshal([]byte(output), &info); err != nil {
-		// Lock file exists but is corrupted - treat as stale
-		_ = l.ForceUnlock()
+		return nil, fmt.Errorf("corrupt lock metadata: %w", err)
+	}
+	return &info, nil
+}
+
+// Release removes the deployment lock
+func (l *Locker) Release() error {
+	info, err := l.readInfo()
+	if err != nil || info == nil || info.Token != l.token {
+		return nil
+	}
+	_, err = l.client.RunCommand(fmt.Sprintf("rm -rf %s", ssh.Quote(l.lockDir)))
+	return err
+}
+
+// IsLocked checks if a valid (non-expired) lock exists
+func (l *Locker) IsLocked() (bool, *LockInfo, error) {
+	info, err := l.readInfo()
+	if err != nil || info == nil {
 		return false, nil, nil
 	}
 
-	// Check if lock has expired
 	if time.Now().After(info.ExpiresAt) {
-		// Lock expired - remove it
-		_ = l.ForceUnlock()
 		return false, nil, nil
 	}
 
-	// Valid lock exists
-	return true, &info, nil
+	return true, info, nil
 }
 
 // ForceUnlock removes the lock regardless of ownership or expiry
 func (l *Locker) ForceUnlock() error {
-	return l.Release()
+	_, err := l.client.RunCommand(fmt.Sprintf("rm -rf %s", ssh.Quote(l.lockDir)))
+	return err
 }
 
 // RenewLock extends the lock expiry time
@@ -189,7 +275,7 @@ func (l *Locker) RenewLock() error {
 		return fmt.Errorf("failed to marshal lock info: %w", err)
 	}
 
-	cmd := fmt.Sprintf("cat > %s << 'EOF'\n%s\nEOF", ssh.Quote(l.lockPath), string(data))
+	cmd := fmt.Sprintf("cat > %s << 'EOF'\n%s\nEOF", ssh.Quote(l.infoPath), string(data))
 	if _, err := l.client.RunCommand(cmd); err != nil {
 		return fmt.Errorf("failed to renew lock: %w", err)
 	}

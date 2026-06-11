@@ -89,3 +89,47 @@ teardown() {
   run bash -c "ls ${out_dir}/backup-production-*.zip"
   assert_success
 }
+
+@test "Concurrent deploys contend for the lock - exactly one is rejected" {
+  set -eu -o pipefail
+
+  # Use the lightweight lock-race config (a single `sleep` command) so the
+  # winning deploy holds the lock briefly without running the full TYPO3 setup.
+  # ssh_key '../ssh_keys/shippy_key' resolves relative to this directory.
+  cd "$BATS_TEST_DIRNAME/config-test"
+
+  out1="${BATS_TMPDIR}/shippy-lock-race-1.log"
+  out2="${BATS_TMPDIR}/shippy-lock-race-2.log"
+  rm -f "$out1" "$out2"
+
+  # Launch two deploys as simultaneously as possible so both race for the lock.
+  ${BIN} deploy production --config lock-race.yaml >"$out1" 2>&1 &
+  pid1=$!
+  ${BIN} deploy production --config lock-race.yaml >"$out2" 2>&1 &
+  pid2=$!
+
+  wait "$pid1" || true
+  wait "$pid2" || true
+
+  # Exactly one run must win (deploy succeeds) and exactly one must be rejected
+  # by the lock. Asserting both guards against a false pass where the winner
+  # fails for an unrelated reason while the loser is still rejected.
+  locked_count=0
+  success_count=0
+  for f in "$out1" "$out2"; do
+    if grep -q "deployment is locked" "$f"; then
+      locked_count=$((locked_count + 1))
+    fi
+    if grep -q "Deployment completed successfully" "$f"; then
+      success_count=$((success_count + 1))
+    fi
+  done
+
+  if [ "$locked_count" -ne 1 ] || [ "$success_count" -ne 1 ]; then
+    echo "Expected exactly 1 success and 1 lock rejection, got success=${success_count} locked=${locked_count}"
+    echo "----- run 1 -----"; cat "$out1"
+    echo "----- run 2 -----"; cat "$out2"
+  fi
+  [ "$success_count" -eq 1 ]
+  [ "$locked_count" -eq 1 ]
+}
