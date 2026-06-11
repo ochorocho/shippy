@@ -101,7 +101,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ochorocho/shippy-action@v1
+      - uses: ochorocho/shippy-action@v0.0.1
         with:
           args: deploy production
 ```
