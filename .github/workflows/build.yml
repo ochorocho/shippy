@@ -42,10 +42,9 @@ jobs:
         run: make build
 
       - name: Generate checksums
-        uses: Solratic/checksum-action@v1
-        with:
-          pattern: "dist/shippy"
-          suffix: "checksum"
+        shell: bash
+        working-directory: dist
+        run: sha256sum shippy > shippy.checksum
 
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v5.0.0
