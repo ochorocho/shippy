@@ -81,6 +81,45 @@ shippy config validate
 shippy deploy production
 ```
 
+## CI/CD
+
+Deploy from a pipeline. Both examples assume a `.shippy.yaml` in your repository and an SSH key for the target server provided as a secret/variable (see [SSH Authentication](#ssh-authentication)).
+
+### GitHub Actions
+
+Install and run shippy with the [setup-shippy action](https://github.com/marketplace/actions/setup-shippy):
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ochorocho/shippy-action@v1
+        with:
+          args: deploy production
+```
+
+### GitLab CI
+
+Use the prebuilt Docker image, which ships shippy on `PATH`:
+
+```yaml
+# .gitlab-ci.yml
+deploy:
+  image: ochorocho/shippy:latest
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  script:
+    - shippy deploy production
+```
+
 ## Configuration
 
 ### Basic Structure
@@ -776,7 +815,7 @@ ssh -i tests/ssh_keys/shippy_key root@127.0.0.1 -p 2424
 
 ## License
 
-MIT
+[MIT](LICENSE)
 
 ## Contributing
 
