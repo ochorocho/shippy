@@ -10,28 +10,28 @@
 class Shippy < Formula
   desc "Zero-downtime deployment tool for Composer based PHP projects"
   homepage "https://github.com/ochorocho/shippy"
-  version "0.0.9"
+  version "0.0.10"
   license "MIT"
 
   on_macos do
     on_arm do
-      url "https://github.com/ochorocho/shippy/releases/download/v0.0.9/shippy-darwin-arm64"
-      sha256 "b85df52746f0d1fe6691b59f80b8a7ec8930afe2eb79a3d1eb3d49770b44b7ee"
+      url "https://github.com/ochorocho/shippy/releases/download/v0.0.10/shippy-darwin-arm64"
+      sha256 "e1f58ba4fa168b0a4887df611781df50bcf7919064a2a3cab23a888359b64d4f"
     end
     on_intel do
-      url "https://github.com/ochorocho/shippy/releases/download/v0.0.9/shippy-darwin-amd64"
-      sha256 "2409a1c2b0f638a431998c74279f8fff81a85c765cd806d700aa3950ccba3aa8"
+      url "https://github.com/ochorocho/shippy/releases/download/v0.0.10/shippy-darwin-amd64"
+      sha256 "914fd3aadb3fbd80b2a6c5206306cfd7c2ea5823ec30d52df4bb21c8ad9e7039"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/ochorocho/shippy/releases/download/v0.0.9/shippy-linux-arm64"
-      sha256 "110ae7f60d8708ae0113df258ccf6290296530d70d4ce55d20ea57b6b6e3b934"
+      url "https://github.com/ochorocho/shippy/releases/download/v0.0.10/shippy-linux-arm64"
+      sha256 "a05283acb80e65e0ac66c19ab6421c84cd2e74310cfc8483e44a950798a4e445"
     end
     on_intel do
-      url "https://github.com/ochorocho/shippy/releases/download/v0.0.9/shippy-linux-amd64"
-      sha256 "0f1c13995a85cc4bb50782a94f72d05f0712c077ac3549330a2dff32c3c690d5"
+      url "https://github.com/ochorocho/shippy/releases/download/v0.0.10/shippy-linux-amd64"
+      sha256 "1f45ff704706178f6b8b63ea11c69bf6639bf4b5cf6f3ad675310ac817bcd69e"
     end
   end
 
