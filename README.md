@@ -23,6 +23,7 @@ based PHP projects, inspired by Deployer and Capistrano.
 
 ```bash
 brew tap ochorocho/shippy https://github.com/ochorocho/shippy
+brew trust ochorocho/shippy
 brew install shippy
 ```
 
