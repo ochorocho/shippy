@@ -180,7 +180,11 @@ func (d *Deployer) Deploy() error {
 		// Convert config commands to SSH commands
 		commands := make([]ssh.Command, len(d.config.Commands))
 		for i, cmd := range d.config.Commands {
-			commands[i] = ssh.Command{Name: cmd.Name, Run: cmd.Run}
+			commands[i] = ssh.Command{
+				Name:    cmd.Name,
+				Run:     cmd.Run,
+				Context: d.config.GetCommandContext(d.host, cmd),
+			}
 		}
 
 		// Execute commands in the specific release directory (NOT the current symlink)

@@ -11,6 +11,12 @@ import (
 type Command struct {
 	Name string
 	Run  string
+
+	// Context, when non-empty, is a subcontext-entry prefix (e.g.
+	// "docker exec php85"). The command — including the `cd` into the release
+	// directory — is wrapped as `<Context> sh -c '<cd workDir && Run>'` so it
+	// runs inside that context. Empty means run directly on the remote host.
+	Context string
 }
 
 // Executor handles command execution on remote servers
@@ -42,13 +48,7 @@ func (e *Executor) Execute(commands []Command, workDir string) error {
 		out.Yellow.Printf("  $ %s\n", cmd.Run)
 		fmt.Printf("\n")
 
-		// Build full command (cd to work directory first).
-		// workDir is a path and is quoted; cmd.Run is the operator-defined
-		// command and is intentionally passed to the shell verbatim.
-		fullCmd := cmd.Run
-		if workDir != "" {
-			fullCmd = fmt.Sprintf("cd %s && %s", Quote(workDir), cmd.Run)
-		}
+		fullCmd := buildRemoteCommand(cmd, workDir)
 
 		// Execute command with output streaming
 		if err := e.client.RunCommandWithOutput(fullCmd, os.Stdout, os.Stderr); err != nil {
@@ -64,4 +64,33 @@ func (e *Executor) Execute(commands []Command, workDir string) error {
 	out.Success("All commands executed successfully")
 
 	return nil
+}
+
+// buildRemoteCommand assembles the remote shell command for a single command.
+//
+// The base form changes into the release directory first (workDir is a path and
+// is quoted; cmd.Run is the operator-defined command, passed verbatim):
+//
+//	cd '<workDir>' && <cmd.Run>
+//
+// When cmd.Context is set, the whole thing is wrapped so it runs inside that
+// subcontext (e.g. a container):
+//
+//	<cmd.Context> sh -c '<cd ... && cmd.Run>'
+//
+// The `cd` therefore happens inside the context, so the release path must
+// resolve to the same path there — the normal bind-mount case. The context
+// prefix is operator-defined and passed verbatim; only the inner command is
+// quoted for the `sh -c` argument.
+func buildRemoteCommand(cmd Command, workDir string) string {
+	inner := cmd.Run
+	if workDir != "" {
+		inner = fmt.Sprintf("cd %s && %s", Quote(workDir), cmd.Run)
+	}
+
+	if cmd.Context != "" {
+		return fmt.Sprintf("%s sh -c %s", cmd.Context, Quote(inner))
+	}
+
+	return inner
 }

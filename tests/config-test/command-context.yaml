@@ -1,0 +1,37 @@
+# Config exercising command_context: every command is wrapped as
+#   <command_context> sh -c 'cd <release> && <run>'
+# `env` is a transparent passthrough available in the container, so it proves
+# the wrapping round-trips through the real remote shell without changing the
+# result. The per-command empty override forces one command back onto the host.
+composer: composer.json
+rsync_src: ./
+keep_releases: 10
+
+command_context: env
+
+hosts:
+  production:
+    hostname: 127.0.0.1
+    remote_user: root
+    deploy_path: /var/www/html
+    port: 2424
+    ssh_key: ../ssh_keys/shippy_key
+    ssh_multiplexing: false
+
+shared:
+  - .env
+  - var/log/
+  - var/session/
+  - public/fileadmin/
+  - public/uploads/
+
+commands:
+  - name: Run extension setup
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 extension:setup
+
+  - name: Flush caches
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 cache:flush
+
+  - name: Warmup caches on host
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 cache:warmup
+    command_context: ""
