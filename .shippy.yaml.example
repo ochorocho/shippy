@@ -117,6 +117,20 @@ backup:
       # schema: "public"         # PostgreSQL: schema to dump
 
 # Commands to run after deployment (on remote server)
+# Optional: Run every command inside a subcontext, e.g. a container.
+# Useful when the PHP sources are mounted into a container and PHP commands
+# must run there. When set, each command is executed as:
+#   <command_context> sh -c 'cd <release-dir> && <run>'
+# so shippy adds the `sh -c` itself — give only the container-entry prefix,
+# WITHOUT a trailing shell (use "docker exec php85", not "docker exec php85 bash").
+#
+# The `cd` happens inside the context, so the release directory must resolve to
+# the same path there — the normal bind-mount case (e.g. /var/www:/var/www).
+# Empty (default) runs commands directly on the remote host.
+#
+# Precedence: per-command > per-host (hosts.<name>.command_context) > this global.
+# command_context: docker exec -u www-data php85
+
 commands:
   - name: Clear TYPO3 cache
     run: ./vendor/bin/typo3 cache:flush
@@ -129,6 +143,12 @@ commands:
 
   - name: Warmup caches
     run: ./vendor/bin/typo3 cache:warmup
+
+  # Per-command override: set an empty command_context to force a single command
+  # to run on the host even when a global/per-host context is configured.
+  # - name: Notify host monitoring
+  #   run: /usr/local/bin/notify-deploy
+  #   command_context: ""
 
 # Optional: Commands to run after rollback (on remote server)
 # Executed in the rolled-back release directory after the "current" symlink

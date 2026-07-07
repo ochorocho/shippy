@@ -3,10 +3,10 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/spf13/cobra"
 	"github.com/ochorocho/shippy/internal/deploy"
 	"github.com/ochorocho/shippy/internal/ssh"
 	"github.com/ochorocho/shippy/internal/ui"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -209,7 +209,11 @@ func runRollback(cmd *cobra.Command, args []string) error {
 
 		commands := make([]ssh.Command, len(cfg.RollbackCommands))
 		for i, cmd := range cfg.RollbackCommands {
-			commands[i] = ssh.Command{Name: cmd.Name, Run: cmd.Run}
+			commands[i] = ssh.Command{
+				Name:    cmd.Name,
+				Run:     cmd.Run,
+				Context: cfg.GetCommandContext(host, cmd),
+			}
 		}
 
 		if err := executor.Execute(commands, selected.Path); err != nil {

@@ -57,6 +57,12 @@ teardown() {
   assert_output --partial "Config structure is valid"
 }
 
+@test "Should validate config with command_context successfully" {
+  run -0 ${BIN} config validate --config ${BATS_TEST_DIRNAME}/config-test/command-context.yaml
+  assert_success
+  assert_output --partial "Config structure is valid"
+}
+
 @test "Should fail validation for invalid YAML syntax" {
   run -1 ${BIN} config validate --config ${BATS_TEST_DIRNAME}/config-test/invalid-syntax.yaml
   assert_failure

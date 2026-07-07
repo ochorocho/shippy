@@ -63,6 +63,28 @@ teardown() {
   assert_output --partial "Kept last 2 releases"
 }
 
+@test "Deploy with command_context wraps commands in a subcontext" {
+  set -eu -o pipefail
+
+  # command-context.yaml sets `command_context: env`, a transparent passthrough
+  # present in the container. This exercises the full wrapping path
+  #   env sh -c 'cd <release> && <run>'
+  # through the real remote shell: if the `cd` or the sh -c quoting were wrong
+  # the `test -f composer.json` guard would fail the deploy. The second command
+  # uses `command_context: ""` to force it back onto the host, so both branches
+  # are covered in one deploy.
+  cd "$BATS_TEST_DIRNAME/config-test"
+
+  run ${BIN} deploy production --config command-context.yaml
+  assert_success
+
+  # Both commands run `pwd` and must resolve to the release directory, proving
+  # the `cd` took effect both inside the context and on the host.
+  assert_output --partial "/var/www/html/releases/"
+  assert_output --partial "All commands executed successfully"
+  assert_output --partial "Release activated - site is now live!"
+}
+
 @test "Backup database credentials fall back to settings.php when configuration:show is unavailable" {
   set -eu -o pipefail
 

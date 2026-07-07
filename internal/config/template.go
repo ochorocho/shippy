@@ -24,6 +24,12 @@ func (c *Config) ProcessTemplates(comp *composer.Composer) error {
 		return fmt.Errorf("global rsync_src: %w", err)
 	}
 
+	// Process global command context
+	c.CommandContext, err = replaceTemplateVars(c.CommandContext, comp)
+	if err != nil {
+		return fmt.Errorf("global command_context: %w", err)
+	}
+
 	for hostName, host := range c.Hosts {
 
 		host.Hostname, err = replaceTemplateVars(host.Hostname, comp)
@@ -49,6 +55,11 @@ func (c *Config) ProcessTemplates(comp *composer.Composer) error {
 		host.SSHKey, err = replaceTemplateVars(host.SSHKey, comp)
 		if err != nil {
 			return fmt.Errorf("host '%s'.ssh_key: %w", hostName, err)
+		}
+
+		host.CommandContext, err = replaceTemplateVars(host.CommandContext, comp)
+		if err != nil {
+			return fmt.Errorf("host '%s'.command_context: %w", hostName, err)
 		}
 
 		// Process SSH options
@@ -92,6 +103,14 @@ func (c *Config) ProcessTemplates(comp *composer.Composer) error {
 		if err != nil {
 			return fmt.Errorf("command[%d].run: %w", i, err)
 		}
+
+		if cmd.CommandContext != nil {
+			processed, err := replaceTemplateVars(*cmd.CommandContext, comp)
+			if err != nil {
+				return fmt.Errorf("command[%d].command_context: %w", i, err)
+			}
+			c.Commands[i].CommandContext = &processed
+		}
 	}
 
 	// Process rollback commands
@@ -106,6 +125,14 @@ func (c *Config) ProcessTemplates(comp *composer.Composer) error {
 		c.RollbackCommands[i].Run, err = replaceTemplateVars(cmd.Run, comp)
 		if err != nil {
 			return fmt.Errorf("rollback_command[%d].run: %w", i, err)
+		}
+
+		if cmd.CommandContext != nil {
+			processed, err := replaceTemplateVars(*cmd.CommandContext, comp)
+			if err != nil {
+				return fmt.Errorf("rollback_command[%d].command_context: %w", i, err)
+			}
+			c.RollbackCommands[i].CommandContext = &processed
 		}
 	}
 

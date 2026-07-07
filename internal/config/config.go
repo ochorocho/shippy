@@ -23,6 +23,12 @@ type Config struct {
 	LockEnabled  *bool    `yaml:"lock_enabled,omitempty"`
 	LockTimeout  int      `yaml:"lock_timeout,omitempty"`
 
+	// CommandContext wraps every post-deploy/rollback command so it runs inside
+	// a subcontext (e.g. a container). When set, commands are executed as
+	// `<command_context> sh -c '<cd releasePath && run>'`. Empty = run directly
+	// on the remote host (default). Can be overridden per-host and per-command.
+	CommandContext string `yaml:"command_context,omitempty"`
+
 	// Backup configuration
 	Backup *BackupConfig `yaml:"backup,omitempty"`
 
@@ -49,15 +55,22 @@ type Host struct {
 	Include         []string          `yaml:"include,omitempty"`
 	Shared          []string          `yaml:"shared,omitempty"`
 	KeepReleases    int               `yaml:"keep_releases,omitempty"`
-	LockEnabled     *bool             `yaml:"lock_enabled,omitempty"` // Pointer to distinguish unset from false
-	LockTimeout     int               `yaml:"lock_timeout,omitempty"` // Timeout in minutes
-	Backup          *BackupConfig     `yaml:"backup,omitempty"`       // Per-host backup override
+	LockEnabled     *bool             `yaml:"lock_enabled,omitempty"`    // Pointer to distinguish unset from false
+	LockTimeout     int               `yaml:"lock_timeout,omitempty"`    // Timeout in minutes
+	Backup          *BackupConfig     `yaml:"backup,omitempty"`          // Per-host backup override
+	CommandContext  string            `yaml:"command_context,omitempty"` // Per-host command context override
 }
 
 // Command represents a command to execute
 type Command struct {
 	Name string `yaml:"name"`
 	Run  string `yaml:"run"`
+
+	// CommandContext overrides the host/global command context for this single
+	// command. A pointer so an explicit empty string ("") can force the command
+	// to run directly on the host even when a host/global context is set; nil
+	// means "inherit the host/global context".
+	CommandContext *string `yaml:"command_context,omitempty"`
 }
 
 // Load reads and parses the configuration file
@@ -126,8 +139,29 @@ func (c *Config) Validate() error {
 		if err := validateShellSafe(host.SSHKey, fmt.Sprintf("host '%s': ssh_key", name)); err != nil {
 			return err
 		}
+		if err := validateShellSafe(host.CommandContext, fmt.Sprintf("host '%s': command_context", name)); err != nil {
+			return err
+		}
 		for i, shared := range host.Shared {
 			if err := validateShellSafe(shared, fmt.Sprintf("host '%s': shared[%d]", name, i)); err != nil {
+				return err
+			}
+		}
+	}
+
+	if err := validateShellSafe(c.CommandContext, "command_context"); err != nil {
+		return err
+	}
+	for i, cmd := range c.Commands {
+		if cmd.CommandContext != nil {
+			if err := validateShellSafe(*cmd.CommandContext, fmt.Sprintf("commands[%d]: command_context", i)); err != nil {
+				return err
+			}
+		}
+	}
+	for i, cmd := range c.RollbackCommands {
+		if cmd.CommandContext != nil {
+			if err := validateShellSafe(*cmd.CommandContext, fmt.Sprintf("rollback_commands[%d]: command_context", i)); err != nil {
 				return err
 			}
 		}
@@ -217,6 +251,19 @@ func (c *Config) GetKeepReleases(host *Host) int {
 		return c.KeepReleases // Global setting
 	}
 	return DefaultKeepReleases // Default
+}
+
+// GetCommandContext resolves the command context for a single command using
+// precedence: per-command override > per-host > global. A per-command context
+// of "" (non-nil) explicitly forces execution on the host; nil inherits.
+func (c *Config) GetCommandContext(host *Host, cmd Command) string {
+	if cmd.CommandContext != nil {
+		return *cmd.CommandContext // Explicit per-command override ("" = run on host)
+	}
+	if host != nil && host.CommandContext != "" {
+		return host.CommandContext // Per-host override
+	}
+	return c.CommandContext // Global setting (may be empty)
 }
 
 // IsLockEnabled returns whether locking is enabled (per-host override, global, or default)
