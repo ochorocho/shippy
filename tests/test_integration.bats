@@ -69,16 +69,19 @@ teardown() {
   # command-context.yaml sets `command_context: env`, a transparent passthrough
   # present in the container. This exercises the full wrapping path
   #   env sh -c 'cd <release> && <run>'
-  # through the real remote shell: if the sh -c quoting were wrong the TYPO3
-  # commands would fail. One command uses `command_context: ""` to force it
-  # back onto the host, so both branches are covered in one deploy.
+  # through the real remote shell: if the `cd` or the sh -c quoting were wrong
+  # the `test -f composer.json` guard would fail the deploy. The second command
+  # uses `command_context: ""` to force it back onto the host, so both branches
+  # are covered in one deploy.
   cd "$BATS_TEST_DIRNAME/config-test"
 
   run ${BIN} deploy production --config command-context.yaml
   assert_success
 
-  assert_output --partial "Congratulations - TYPO3 Setup is done."
-  assert_output --partial "[OK] Extension(s)"
+  # Both commands run `pwd` and must resolve to the release directory, proving
+  # the `cd` took effect both inside the context and on the host.
+  assert_output --partial "/var/www/html/releases/"
+  assert_output --partial "All commands executed successfully"
   assert_output --partial "Release activated - site is now live!"
 }
 

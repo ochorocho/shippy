@@ -2,7 +2,9 @@
 #   <command_context> sh -c 'cd <release> && <run>'
 # `env` is a transparent passthrough available in the container, so it proves
 # the wrapping round-trips through the real remote shell without changing the
-# result. The per-command empty override forces one command back onto the host.
+# result. Commands use only POSIX-sh builtins (cd, pwd, test) so the test
+# asserts the wrapping mechanics without depending on the remote PATH.
+# The per-command empty override forces one command back onto the host.
 composer: composer.json
 rsync_src: ./
 keep_releases: 10
@@ -26,12 +28,13 @@ shared:
   - public/uploads/
 
 commands:
-  - name: Run extension setup
-    run: ./{{config.bin-dir|vendor/bin}}/typo3 extension:setup
+  # Wrapped in the context: proves `cd` happens inside the context and the
+  # single-quote escaping for `sh -c` is correct (a failing cd or bad quoting
+  # would make the deploy fail).
+  - name: Confirm release directory inside context
+    run: test -f composer.json && pwd
 
-  - name: Flush caches
-    run: ./{{config.bin-dir|vendor/bin}}/typo3 cache:flush
-
-  - name: Warmup caches on host
-    run: ./{{config.bin-dir|vendor/bin}}/typo3 cache:warmup
+  # Same, forced back onto the host with an empty per-command override.
+  - name: Confirm release directory on host
+    run: test -f composer.json && pwd
     command_context: ""
