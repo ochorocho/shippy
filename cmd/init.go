@@ -103,6 +103,12 @@ func generateMinimalConfig() string {
 #   - "*.log"
 #   - ".env.example"
 
+# Files/patterns to force-include despite .gitignore.
+# vendor/ is gitignored in most Composer projects but must be shipped, since
+# the server does not run "composer install" - keep it here.
+include:
+  - "vendor/"
+
 # Optional: Deployment locking (default: enabled, 15 min timeout)
 # lock_enabled: true
 # lock_timeout: 15

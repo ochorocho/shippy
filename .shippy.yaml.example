@@ -39,7 +39,7 @@ hosts:
     # Useful for including vendor/ or other gitignored deployment files
     include:
       - "public/.htaccess"   # Include .htaccess files
-      # - "vendor/"          # Uncomment to include vendor directory
+      - "vendor/"
 
     # Shared files/directories (symlinked from shared/ to each release)
     shared:

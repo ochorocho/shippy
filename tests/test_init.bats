@@ -80,6 +80,15 @@ teardown() {
   assert_output --partial "deploy_path:"
 }
 
+@test "Generated config should include vendor directory" {
+  run -0 ${BIN} init
+  assert_success
+
+  run cat .shippy.yaml
+  assert_output --partial "include:"
+  assert_output --partial "vendor/"
+}
+
 @test "Generated config should mark optional fields" {
   run -0 ${BIN} init
   assert_success
