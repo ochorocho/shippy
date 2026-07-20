@@ -47,6 +47,12 @@ func (o *Output) Info(format string, args ...interface{}) {
 	o.Yellow.Printf(format+"\n", args...)
 }
 
+// Warning prints a warning message with an exclamation mark
+func (o *Output) Warning(format string, args ...interface{}) {
+	// #nosec G104 -- Printf errors in UI output can be safely ignored
+	o.Yellow.Printf("! "+format+"\n", args...)
+}
+
 // Step prints a step header with arrow
 func (o *Output) Step(format string, args ...interface{}) {
 	// #nosec G104 -- Printf errors in UI output can be safely ignored

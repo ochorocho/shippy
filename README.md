@@ -12,7 +12,7 @@ based PHP projects, inspired by Deployer and Capistrano.
 - **Shared files/directories** - persistent data between releases
 - **Template variables** from composer.json
 - **Pure Go implementation** - single binary, no dependencies
-- **.gitignore support** - respects your gitignore patterns
+- **Deny-by-default file selection** - explicit allowlist, nothing ships unless you include it
 - **SSH-based** deployment with key authentication
 - **Colored output** - clear, beautiful deployment progress
 - **TYPO3 optimized** - sensible defaults for TYPO3 projects
@@ -68,6 +68,7 @@ Update at minimum:
 - `hostname` - your server's domain or IP
 - `remote_user` - SSH username
 - `ssh_key` - path to your SSH private key
+- `include` - the allowlist of paths to deploy (deny-by-default; adjust to your project layout)
 
 3. **Validate configuration**:
 
@@ -141,41 +142,24 @@ hosts:
 
     # File management
     shared: <list of shared paths>
-    exclude: <additional exclude patterns>
-    include: <patterns to include despite .gitignore>
+    include: <allowlist - paths to deploy (deny-by-default)>
+    exclude: <carve-outs that win over includes>
 
 commands:
   - name: <command description>
     run: <command to execute>
 ```
 
-### Exclude and Include Patterns
+### File Selection: Deny-by-Default (Allowlist)
 
-**Exclude Patterns:**
+Shippy deploys files using an **allowlist**: by default **nothing is deployed**
+unless it is listed under `include:`. A project root usually contains far more
+that should *not* ship (`.git/`, `node_modules/`, dumps, IDE files, `.env`) than
+should — an allowlist is safer and less error-prone than trying to exclude every
+unwanted path.
 
-Shippy automatically respects `.gitignore` patterns **including nested `.gitignore` files in subdirectories**. You can add additional exclude patterns in your configuration:
-
-```yaml
-hosts:
-  production:
-    hostname: example.com
-    remote_user: deploy
-    deploy_path: /var/www/myproject
-    rsync_src: ./
-
-    # Additional exclude patterns (beyond .gitignore)
-    exclude:
-      - "*.log"              # Exclude all .log files
-      - ".env.example"       # Exclude specific file
-      - "tests/"             # Exclude entire directory
-      - "*.md"               # Exclude all markdown files
-      - ".ddev/"             # Exclude DDEV configuration
-      - "node_modules/"      # Exclude node modules (if not in .gitignore)
-```
-
-**Include Patterns:**
-
-Use `include` to explicitly include files that are excluded by `.gitignore`:
+**Include = the allowlist.** List exactly what should ship. A directory entry
+ships that directory and everything beneath it:
 
 ```yaml
 hosts:
@@ -185,33 +169,59 @@ hosts:
     deploy_path: /var/www/myproject
     rsync_src: ./
 
-    # Force include files despite .gitignore
     include:
-      - "public/.htaccess"   # Include .htaccess files
-      - "vendor/"            # Include vendor directory (if gitignored)
-      - ".env.production"    # Include specific environment file
+      - "public/"            # Web root (ships the whole subtree)
+      - "vendor/"            # Composer dependencies
+      - "config/"            # TYPO3 configuration
+      - "composer.json"
+      - "composer.lock"
 ```
+
+**Exclude = carve-outs.** Excludes always **win over includes**, so use them to
+punch holes in an included directory:
+
+```yaml
+    exclude:
+      - "public/typo3temp/"  # Drop generated temp files under an included dir
+      - "*.log"              # Never ship log files
+```
+
+Common junk — `.git/`, `node_modules/`, `var/cache/`, `var/log/`, `.DS_Store`,
+`Thumbs.db` and more (see [Default Excludes](#default-excludes)) — is carved out
+automatically; you don't need to list it.
+
+**Notes:**
+
+- `include:`/`exclude:` are **not merged across hosts** — a per-host list
+  replaces the global one entirely. Give each host its own allowlist (or define
+  one at the global level and omit it per host).
+- `.gitignore` is **not** consulted for deployment. You select what ships with
+  `include:`; you don't rely on gitignore to deselect.
+- Escape hatch: `include: ["*"]` ships (almost) everything; the built-in junk
+  list still protects `.git/` etc.
 
 **Pattern Syntax:**
 
 - Patterns use gitignore-style syntax
-- `*` matches any characters except `/`
-- `**` matches any characters including `/`
+- A single-segment pattern (`vendor/`, `*.log`) matches at any depth
+- A multi-segment pattern (`public/index.php`) is anchored to the project root
 - Trailing `/` means directory only
-- No leading `/` means pattern matches at any depth
-- Leading `/` means pattern matches from project root
+- `*` matches within a path segment; `**` matches across segments
 
-**Examples:**
+### Migrating from a previous version
 
-```yaml
-exclude:
-  - "*.log"                    # All .log files at any depth
-  - "/build/"                  # build/ directory at root only
-  - "temp/"                    # temp/ directory at any depth
-  - "**/*.test.js"             # All .test.js files anywhere
-  - ".DS_Store"                # macOS metadata files
-  - "Thumbs.db"                # Windows metadata files
-```
+Earlier versions shipped **everything by default** and used `exclude:` (and
+`.gitignore`) to remove unwanted files. Deny-by-default reverses this:
+
+- **Add an `include:` allowlist to every host** (or globally). Without it,
+  `shippy deploy` scans **0 files** and warns you.
+- Existing `exclude:` entries still work, now as carve-outs on top of your
+  includes.
+- `.gitignore` no longer affects what is deployed — anything you relied on
+  gitignore to exclude is already excluded by default; anything gitignored that
+  you still need (e.g. `vendor/`) simply goes in `include:`.
+- Run `shippy config validate` and review `shippy deploy`'s "Found N files to
+  sync" count before your first real deploy.
 
 ### SSH Authentication
 
@@ -622,7 +632,7 @@ This command:
 
 When you run `shippy deploy <host>`, the following steps occur:
 
-1. **Scan files** - Walks source directory, respects .gitignore and exclude patterns
+1. **Scan files** - Walks source directory, applies the deny-by-default allowlist (include/exclude patterns)
 2. **Connect to server** - Establishes SSH connection
 3. **Create release** - Creates new timestamped release directory (e.g., `releases/20260109203841`)
 4. **Sync files** - Transfers files to the new release directory
@@ -645,6 +655,13 @@ hosts:
     deploy_path: /var/www/{{name}}
     rsync_src: ./
     ssh_key: ~/.ssh/id_rsa
+    # Deny-by-default: list exactly what should ship
+    include:
+      - public/
+      - vendor/
+      - config/
+      - composer.json
+      - composer.lock
     shared:
       - .env
       - var/log/
@@ -672,16 +689,18 @@ hosts:
     ssh_key: ~/.ssh/id_rsa
     keep_releases: 3
 
-    # Additional excludes beyond .gitignore
-    exclude:
-      - .git/
-      - node_modules/
-      - .env.local
-      - Tests/
-
-    # Force include despite .gitignore
+    # Allowlist: exactly what ships (deny-by-default)
     include:
-      - public/.htaccess
+      - public/
+      - vendor/
+      - config/
+      - composer.json
+      - composer.lock
+
+    # Carve-outs (win over includes). Common junk is already excluded.
+    exclude:
+      - public/typo3temp/
+      - Tests/
 
     # Shared paths
     shared:
@@ -698,6 +717,12 @@ hosts:
     rsync_src: ./
     ssh_key: ~/.ssh/id_rsa_production
     keep_releases: 10
+    include:
+      - public/
+      - vendor/
+      - config/
+      - composer.json
+      - composer.lock
     shared:
       - .env
       - var/log/
@@ -728,7 +753,8 @@ rollback_commands:
 
 ## Default Excludes
 
-Shippy automatically excludes these patterns (in addition to .gitignore):
+These carve-out patterns are always applied and **win over your `include:`
+allowlist**, so common junk never ships even inside an included directory:
 
 - `.git/`
 - `.gitignore`
@@ -764,7 +790,7 @@ shippy/
 │   ├── composer/
 │   │   └── parser.go    # Composer.json parser
 │   ├── rsync/
-│   │   ├── sync.go      # File scanner with gitignore
+│   │   ├── sync.go      # Allowlist file scanner (deny-by-default)
 │   │   └── transfer.go  # File transfer over SSH
 │   ├── ssh/
 │   │   ├── client.go    # SSH client

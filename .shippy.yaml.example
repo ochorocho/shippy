@@ -26,20 +26,23 @@ hosts:
     rsync_src: ./
     keep_releases: 5  # Number of releases to keep (default: 5)
 
-    # Optional: Additional exclude patterns (beyond .gitignore)
-    # Patterns support gitignore-style syntax
-    exclude:
-      - "*.log"              # Exclude all log files
-      - ".env.example"       # Exclude .env.example
-      - "tests/"             # Exclude tests directory
-      - ".ddev/"             # Exclude DDEV configuration
-      - "*.md"               # Exclude markdown files
-
-    # Optional: Force include files despite .gitignore
-    # Useful for including vendor/ or other gitignored deployment files
+    # File selection is DENY-BY-DEFAULT (an allowlist): nothing is deployed
+    # unless it is listed under 'include:' below. A directory entry ships that
+    # directory and everything beneath it. Note: .gitignore is NOT consulted for
+    # deployment - list what you want shipped explicitly.
     include:
-      - "public/.htaccess"   # Include .htaccess files
-      - "vendor/"
+      - "public/"            # Web root (ships everything under it)
+      - "vendor/"            # Composer dependencies
+      - "config/"            # TYPO3 configuration
+      - "composer.json"
+      - "composer.lock"
+
+    # Optional: Carve-outs. Excludes always WIN over includes, so use them to
+    # punch holes in an included directory. Common junk (.git/, node_modules/,
+    # var/cache/, .DS_Store, ...) is excluded automatically - no need to list it.
+    exclude:
+      - "public/typo3temp/"  # Don't ship generated temp files
+      - "*.log"              # Never ship log files
 
     # Shared files/directories (symlinked from shared/ to each release)
     shared:
@@ -58,6 +61,14 @@ hosts:
     ssh_key: ~/.ssh/id_rsa_production
     ssh_multiplexing: true  # Enable for faster deployments
     keep_releases: 10
+    # Deny-by-default: each host needs its own allowlist (include/exclude are not
+    # merged across hosts - a per-host list replaces the one above entirely).
+    include:
+      - "public/"
+      - "vendor/"
+      - "config/"
+      - "composer.json"
+      - "composer.lock"
     shared:
       - .env
       - var/log/

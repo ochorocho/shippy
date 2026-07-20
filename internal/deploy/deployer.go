@@ -67,11 +67,16 @@ func (d *Deployer) Deploy() error {
 	// Step 1: Scan files
 	out.StepNumber(1, "Scanning files")
 
+	includePatterns := d.config.GetInclude(d.host)
+	if len(includePatterns) == 0 {
+		out.Warning("No include patterns configured - deployment is deny-by-default, so nothing will be synced.")
+		out.Info("  Add an 'include:' allowlist (e.g. public/, vendor/, config/, composer.json) to your .shippy.yaml.")
+	}
+
 	scanOpts := rsync.SyncOptions{
 		SourceDir:       d.config.GetRsyncSrc(d.host),
 		ExcludePatterns: d.getExcludePatterns(),
-		IncludePatterns: d.config.GetInclude(d.host),
-		UseGitignore:    true,
+		IncludePatterns: includePatterns,
 	}
 
 	scanner, err := rsync.NewScanner(scanOpts)
@@ -235,11 +240,16 @@ func (d *Deployer) DryRun() error {
 	// Scan files (local only, no SSH connection required)
 	out.StepNumber(1, "Scanning files")
 
+	includePatterns := d.config.GetInclude(d.host)
+	if len(includePatterns) == 0 {
+		out.Warning("No include patterns configured - deployment is deny-by-default, so nothing will be synced.")
+		out.Info("  Add an 'include:' allowlist (e.g. public/, vendor/, config/, composer.json) to your .shippy.yaml.")
+	}
+
 	scanOpts := rsync.SyncOptions{
 		SourceDir:       d.config.GetRsyncSrc(d.host),
 		ExcludePatterns: d.getExcludePatterns(),
-		IncludePatterns: d.config.GetInclude(d.host),
-		UseGitignore:    true,
+		IncludePatterns: includePatterns,
 	}
 
 	scanner, err := rsync.NewScanner(scanOpts)
@@ -308,8 +318,13 @@ func (d *Deployer) printFileTree(out *ui.Output, files []rsync.FileInfo) {
 	}
 }
 
-// getExcludePatterns returns the combined list of exclude patterns
+// getExcludePatterns returns the carve-out patterns: the built-in junk list plus
+// any user-defined excludes. These always win over the include allowlist.
 func (d *Deployer) getExcludePatterns() []string {
-	// Combine default excludes with user-defined excludes (from config or host)
-	return append(defaultExcludePatterns, d.config.GetExclude(d.host)...)
+	// Start from a fresh slice so we never mutate the package-level
+	// defaultExcludePatterns backing array across calls.
+	excludes := make([]string, 0, len(defaultExcludePatterns)+len(d.config.GetExclude(d.host)))
+	excludes = append(excludes, defaultExcludePatterns...)
+	excludes = append(excludes, d.config.GetExclude(d.host)...)
+	return excludes
 }
