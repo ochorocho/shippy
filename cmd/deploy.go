@@ -1,14 +1,15 @@
 package cmd
 
 import (
-	"github.com/spf13/cobra"
 	"github.com/ochorocho/shippy/internal/composer"
 	"github.com/ochorocho/shippy/internal/deploy"
 	"github.com/ochorocho/shippy/internal/ui"
+	"github.com/spf13/cobra"
 )
 
 var (
 	verbose bool
+	dryRun  bool
 )
 
 var deployCmd = &cobra.Command{
@@ -37,6 +38,7 @@ Example:
 func init() {
 	rootCmd.AddCommand(deployCmd)
 	deployCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed output for each file")
+	deployCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview which files and commands would be deployed without connecting to the host")
 }
 
 func runDeploy(cmd *cobra.Command, args []string) error {
@@ -79,6 +81,15 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		out.Error("Failed to create deployer: %v", err)
 		return err
+	}
+
+	// Dry run: preview files and commands without connecting to the host
+	if dryRun {
+		if err := deployer.DryRun(); err != nil {
+			out.Error("Dry run failed: %v", err)
+			return err
+		}
+		return nil
 	}
 
 	// Deploy!

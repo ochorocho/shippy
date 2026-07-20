@@ -98,3 +98,39 @@ teardown() {
   assert_failure
   assert_output --partial "hostname is required"
 }
+
+@test "Should show dry-run flag in help" {
+  run -0 ${BIN} deploy --help
+  assert_success
+  assert_output --partial "--dry-run"
+}
+
+@test "Should preview files and commands with --dry-run without connecting" {
+  # minimal.yaml points at an unreachable host; --dry-run must still succeed
+  run -0 ${BIN} deploy production --dry-run --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
+  assert_success
+  assert_output --partial "Dry Run"
+  assert_output --partial "Found"
+  assert_output --partial "files to sync"
+  # Directories are shown with a file count, not the individual files
+  assert_output --partial "files)"
+  # Default TYPO3 commands are listed
+  assert_output --partial "Commands to execute"
+  assert_output --partial "cache:flush"
+  assert_output --partial "nothing was deployed"
+}
+
+@test "Should not list individual files with --dry-run (non-verbose)" {
+  run -0 ${BIN} deploy production --dry-run --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
+  assert_success
+  # composer.json is grouped under its directory, not printed as a file line
+  refute_output --partial "    composer.json"
+}
+
+@test "Should list individual files with --dry-run --verbose" {
+  mkdir -p public/css
+  echo "body{}" > public/css/main.css
+  run -0 ${BIN} deploy production --dry-run --verbose --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
+  assert_success
+  assert_output --partial "public/css/main.css"
+}
