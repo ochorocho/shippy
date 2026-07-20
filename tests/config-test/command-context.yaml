@@ -9,6 +9,11 @@ composer: composer.json
 rsync_src: ./
 keep_releases: 10
 
+# Deny-by-default allowlist: the commands below run `test -f composer.json` in
+# the release, so composer.json must be deployed.
+include:
+  - composer.json
+
 command_context: env
 
 hosts:

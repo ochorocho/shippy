@@ -1,8 +1,12 @@
+include:
+  - "public/"
+  - "vendor/"
+  - "config/"
+  - "composer.json"
+  - "composer.lock"
 exclude:
   - "**/*.rst"
   - "**/*.md"
-include:
-  - "public/.htaccess"
 shared:
   - .env
   - var/log/
