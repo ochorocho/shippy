@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -71,6 +72,26 @@ type Command struct {
 	// to run directly on the host even when a host/global context is set; nil
 	// means "inherit the host/global context".
 	CommandContext *string `yaml:"command_context,omitempty"`
+
+	// Only restricts this command to the listed host names (the keys under
+	// `hosts:`). Empty = runs on every host unless excluded below.
+	Only []string `yaml:"only,omitempty"`
+
+	// Except skips this command on the listed host names, even if Only would
+	// otherwise include it.
+	Except []string `yaml:"except,omitempty"`
+}
+
+// AppliesToHost reports whether the command should run when deploying to
+// hostName, per its only/except filters (GitLab CI style).
+func (cmd Command) AppliesToHost(hostName string) bool {
+	if len(cmd.Only) > 0 && !slices.Contains(cmd.Only, hostName) {
+		return false
+	}
+	if slices.Contains(cmd.Except, hostName) {
+		return false
+	}
+	return true
 }
 
 // Load reads and parses the configuration file
@@ -158,6 +179,9 @@ func (c *Config) Validate() error {
 				return err
 			}
 		}
+		if err := c.validateCommandHostRefs(cmd, fmt.Sprintf("commands[%d]", i)); err != nil {
+			return err
+		}
 	}
 	for i, cmd := range c.RollbackCommands {
 		if cmd.CommandContext != nil {
@@ -165,8 +189,27 @@ func (c *Config) Validate() error {
 				return err
 			}
 		}
+		if err := c.validateCommandHostRefs(cmd, fmt.Sprintf("rollback_commands[%d]", i)); err != nil {
+			return err
+		}
 	}
 
+	return nil
+}
+
+// validateCommandHostRefs checks that a command's only/except entries refer
+// to hosts actually defined in the config, catching typos at load time.
+func (c *Config) validateCommandHostRefs(cmd Command, field string) error {
+	for _, hostName := range cmd.Only {
+		if _, ok := c.Hosts[hostName]; !ok {
+			return fmt.Errorf("%s: only references unknown host '%s'", field, hostName)
+		}
+	}
+	for _, hostName := range cmd.Except {
+		if _, ok := c.Hosts[hostName]; !ok {
+			return fmt.Errorf("%s: except references unknown host '%s'", field, hostName)
+		}
+	}
 	return nil
 }
 

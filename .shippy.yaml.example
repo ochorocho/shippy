@@ -151,9 +151,19 @@ commands:
 
   - name: Database migrations
     run: ./vendor/bin/typo3 upgrade:run
+    # Only run this command for the listed host(s) (keys under `hosts:`).
+    # Skipped everywhere else. GitLab-CI-style; omit for "runs on every host".
+    only:
+      - production
 
   - name: Warmup caches
     run: ./vendor/bin/typo3 cache:warmup
+
+  # except is the inverse of only: runs everywhere except the listed hosts.
+  # - name: Notify host monitoring
+  #   run: /usr/local/bin/notify-deploy
+  #   except:
+  #     - staging
 
   # Per-command override: set an empty command_context to force a single command
   # to run on the host even when a global/per-host context is configured.

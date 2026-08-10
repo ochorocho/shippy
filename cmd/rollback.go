@@ -207,18 +207,24 @@ func runRollback(cmd *cobra.Command, args []string) error {
 
 		executor := ssh.NewExecutor(client)
 
-		commands := make([]ssh.Command, len(cfg.RollbackCommands))
-		for i, cmd := range cfg.RollbackCommands {
-			commands[i] = ssh.Command{
+		var commands []ssh.Command
+		for _, cmd := range cfg.RollbackCommands {
+			if !cmd.AppliesToHost(hostName) {
+				out.Info("  Skipping %s (not enabled for %s)", cmd.Name, hostName)
+				continue
+			}
+			commands = append(commands, ssh.Command{
 				Name:    cmd.Name,
 				Run:     cmd.Run,
 				Context: cfg.GetCommandContext(host, cmd),
-			}
+			})
 		}
 
-		if err := executor.Execute(commands, selected.Path); err != nil {
-			out.Error("Rollback command execution failed: %v", err)
-			return err
+		if len(commands) > 0 {
+			if err := executor.Execute(commands, selected.Path); err != nil {
+				out.Error("Rollback command execution failed: %v", err)
+				return err
+			}
 		}
 	}
 
