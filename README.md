@@ -150,6 +150,45 @@ commands:
     run: <command to execute>
 ```
 
+### Commands
+
+`commands` (and `rollback_commands`) run in the new release directory, in order, before the atomic switchover. Each entry needs a `name` and a `run`:
+
+```yaml
+commands:
+  - name: Install dependencies
+    run: composer install --no-dev --optimize-autoloader
+
+  - name: Database migrations
+    run: ./vendor/bin/typo3 upgrade:run
+```
+
+**Scoping a command to specific hosts:**
+
+By default a command runs for every host in `hosts:`. Use `only` / `except` (GitLab-CI style) to scope a single command instead of duplicating the whole command list per host:
+
+```yaml
+commands:
+  - name: Database migrations
+    run: ./vendor/bin/typo3 upgrade:run
+    # Only run this command for the listed host(s) (keys under `hosts:`).
+    # Skipped everywhere else. Omit `only`/`except` entirely to run on every host.
+    only:
+      - production
+
+  - name: Notify monitoring
+    run: /usr/local/bin/notify-deploy
+    # except is the inverse of only: runs everywhere except the listed hosts.
+    except:
+      - staging
+```
+
+- `only` and `except` accept a list of host names (the keys under `hosts:`).
+- If a host matches both, `except` wins.
+- Commands skipped for a host are logged as skipped during `deploy`/`rollback`.
+- `shippy config validate` rejects `only`/`except` entries that reference a host name not defined under `hosts:`.
+- `shippy config show <host>` lists only the commands that actually apply to that host; `shippy config validate` annotates every command with its resolved scope.
+
 ### File Selection: Deny-by-Default (Allowlist)
 
 Shippy deploys files using an **allowlist**: by default **nothing is deployed**
