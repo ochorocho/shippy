@@ -2,7 +2,9 @@ package deploy
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/ochorocho/shippy/internal/composer"
@@ -218,6 +220,92 @@ func (d *Deployer) Deploy() error {
 	out.HeaderGreen("Deployment completed successfully!")
 
 	return nil
+}
+
+// DryRun previews which files and commands would be deployed without
+// connecting to the remote host. The file scan runs entirely locally, so this
+// works even when the target is unreachable.
+func (d *Deployer) DryRun() error {
+	out := ui.New()
+
+	out.Header("Shippy - Dry Run (no changes will be made)")
+	out.Info("Target: %s (%s@%s:%s)", d.hostName, d.host.RemoteUser, d.host.Hostname, d.host.DeployPath)
+	fmt.Printf("\n")
+
+	// Scan files (local only, no SSH connection required)
+	out.StepNumber(1, "Scanning files")
+
+	scanOpts := rsync.SyncOptions{
+		SourceDir:       d.config.GetRsyncSrc(d.host),
+		ExcludePatterns: d.getExcludePatterns(),
+		IncludePatterns: d.config.GetInclude(d.host),
+		UseGitignore:    true,
+	}
+
+	scanner, err := rsync.NewScanner(scanOpts)
+	if err != nil {
+		return fmt.Errorf("failed to create scanner: %w", err)
+	}
+
+	files, err := scanner.Scan()
+	if err != nil {
+		return fmt.Errorf("failed to scan files: %w", err)
+	}
+
+	out.Success("Found %d files to sync", len(files))
+	d.printFileTree(out, files)
+
+	// Shared symlinks that would be created
+	sharedItems := d.config.GetShared(d.host)
+	if len(sharedItems) > 0 {
+		out.StepNumber(2, "Shared symlinks (%d)", len(sharedItems))
+		for _, item := range sharedItems {
+			out.Println("  %s", item)
+		}
+	}
+
+	// Commands that would be executed in the new release
+	if len(d.config.Commands) > 0 {
+		out.StepNumber(3, "Commands to execute (%d)", len(d.config.Commands))
+		for _, cmd := range d.config.Commands {
+			out.Println("  %s", cmd.Name)
+			out.Info("    $ %s", cmd.Run)
+		}
+	}
+
+	out.HeaderGreen("Dry run completed - nothing was deployed")
+
+	return nil
+}
+
+// printFileTree groups scanned files by directory. By default only directories
+// with their file count are shown; with verbose the individual files are listed.
+func (d *Deployer) printFileTree(out *ui.Output, files []rsync.FileInfo) {
+	groups := make(map[string][]string)
+	for _, f := range files {
+		dir := path.Dir(f.RelPath)
+		if dir == "." {
+			dir = "./"
+		}
+		groups[dir] = append(groups[dir], f.RelPath)
+	}
+
+	dirs := make([]string, 0, len(groups))
+	for dir := range groups {
+		dirs = append(dirs, dir)
+	}
+	sort.Strings(dirs)
+
+	for _, dir := range dirs {
+		entries := groups[dir]
+		out.Println("  %s (%d files)", dir, len(entries))
+		if d.verbose {
+			sort.Strings(entries)
+			for _, rel := range entries {
+				out.Info("    %s", rel)
+			}
+		}
+	}
 }
 
 // getExcludePatterns returns the combined list of exclude patterns
