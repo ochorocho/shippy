@@ -28,11 +28,17 @@ services:
       MYSQL_TCP_PORT: 3308
       MYSQL_ROOT_PASSWORD: db
     container_name: typo3-shippy-mariadb
+    # The database is throwaway and re-initialized on every `compose up`. Keeping
+    # the data dir on tmpfs makes first-boot init fast and immune to host disk
+    # contention, so the healthcheck below becomes healthy reliably even when the
+    # integration suite churns the stack up/down many times back-to-back.
+    tmpfs:
+      - /var/lib/mysql
     healthcheck:
       # Wait until MariaDB actually accepts connections before deploys run
       # `typo3 setup`, otherwise the install fails with "Connection refused".
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 5s
       timeout: 3s
-      retries: 12
-      start_period: 15s
+      retries: 20
+      start_period: 30s

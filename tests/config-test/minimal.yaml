@@ -1,3 +1,7 @@
+# Deny-by-default allowlist: without an include nothing is deployed.
+include:
+  - public/
+  - composer.json
 hosts:
   production:
     hostname: 127.0.0.1
@@ -6,5 +10,5 @@ hosts:
     # optional but required for testing
     ssh_key: ../ssh_keys/shippy_key
     ssh_options:
-      StrictHostKeyChecking: yes # Not recommended for production use!
+      StrictHostKeyChecking: yes
     port: 2424

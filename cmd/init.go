@@ -98,16 +98,22 @@ func generateMinimalConfig() string {
 #   - public/fileadmin/
 #   - public/uploads/
 
-# Optional: Files/patterns to exclude from deployment
-# exclude:
-#   - "*.log"
-#   - ".env.example"
-
-# Files/patterns to force-include despite .gitignore.
-# vendor/ is gitignored in most Composer projects but must be shipped, since
-# the server does not run "composer install" - keep it here.
+# File selection is deny-by-default: NOTHING is deployed unless it is listed in
+# 'include:' below. This is an allowlist - list exactly the paths that must ship.
+# A directory entry (e.g. public/) ships that directory and everything under it.
 include:
-  - "vendor/"
+  - "public/"        # Web root
+  - "vendor/"        # Composer dependencies (server does not run "composer install")
+  - "config/"        # TYPO3 site/system configuration
+  - "composer.json"
+  - "composer.lock"
+
+# Optional: Carve-outs. Excludes always win over includes, so use them to punch
+# holes in an included directory. Common junk (.git/, node_modules/, var/cache/,
+# .DS_Store, ...) is already excluded automatically.
+# exclude:
+#   - "public/typo3temp/"
+#   - "*.log"
 
 # Optional: Deployment locking (default: enabled, 15 min timeout)
 # lock_enabled: true

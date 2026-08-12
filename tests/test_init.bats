@@ -89,6 +89,18 @@ teardown() {
   assert_output --partial "vendor/"
 }
 
+@test "Generated config uses a deny-by-default allowlist" {
+  run -0 ${BIN} init
+  assert_success
+
+  run cat .shippy.yaml
+  # Allowlist starter ships the essential TYPO3 paths
+  assert_output --partial "public/"
+  assert_output --partial "config/"
+  assert_output --partial "composer.json"
+  assert_output --partial "deny-by-default"
+}
+
 @test "Generated config should mark optional fields" {
   run -0 ${BIN} init
   assert_success

@@ -1,7 +1,6 @@
 package rsync
 
 import (
-	"bufio"
 	"crypto/sha256"
 	"fmt"
 	"io"
@@ -25,35 +24,45 @@ type FileInfo struct {
 
 // SyncOptions contains options for file synchronization
 type SyncOptions struct {
-	SourceDir       string
+	SourceDir string
+	// ExcludePatterns are carve-outs: they always win over includes. This is the
+	// built-in junk list plus any user-defined exclude patterns.
 	ExcludePatterns []string
+	// IncludePatterns form the allowlist. Deployment is deny-by-default: a path is
+	// only synced when it (or an ancestor directory) matches an include pattern.
 	IncludePatterns []string
-	UseGitignore    bool
 }
 
-// Scanner scans files in a directory and determines which should be synced
+// Scanner scans files in a directory and determines which should be synced.
+//
+// Selection is deny-by-default (an allowlist): nothing is synced unless it
+// matches an include pattern. Excludes are carve-outs that win over includes, so
+// junk (.git/, node_modules/, ...) never ships even inside an included directory.
 type Scanner struct {
-	opts           SyncOptions
-	excludes       []gitignore.Pattern
-	includes       []gitignore.Pattern
-	gitignoreCache map[string][]gitignore.Pattern // Cache of .gitignore patterns by directory
+	opts     SyncOptions
+	excludes []gitignore.Pattern
+	includes []gitignore.Pattern
+	// rawIncludes keeps the original include pattern strings (without the leading
+	// "!"/"/") so we can decide whether to descend into a directory that is an
+	// ancestor of an anchored include target (e.g. descend into "public" for the
+	// include "public/index.php").
+	rawIncludes []string
 }
 
 // NewScanner creates a new file scanner
 func NewScanner(opts SyncOptions) (*Scanner, error) {
-	s := &Scanner{
-		opts:           opts,
-		gitignoreCache: make(map[string][]gitignore.Pattern),
-	}
+	s := &Scanner{opts: opts}
 
-	// Parse exclude patterns
+	// Parse exclude patterns (carve-outs)
 	for _, pattern := range opts.ExcludePatterns {
 		s.excludes = append(s.excludes, gitignore.ParsePattern(pattern, nil))
 	}
 
-	// Parse include patterns - prefix with ! to create negation patterns
-	// This allows them to override .gitignore exclusions
+	// Parse include patterns (allowlist). They are stored as gitignore negation
+	// patterns (prefixed with "!") so the matcher reports gitignore.Include on a
+	// match. The original strings are kept in rawIncludes for directory descent.
 	for _, pattern := range opts.IncludePatterns {
+		s.rawIncludes = append(s.rawIncludes, includeLiteral(pattern))
 		negatePattern := pattern
 		if !strings.HasPrefix(pattern, "!") {
 			negatePattern = "!" + pattern
@@ -61,74 +70,15 @@ func NewScanner(opts SyncOptions) (*Scanner, error) {
 		s.includes = append(s.includes, gitignore.ParsePattern(negatePattern, nil))
 	}
 
-	// Load root .gitignore if requested
-	if opts.UseGitignore {
-		if err := s.loadGitignoreFromDir(opts.SourceDir); err != nil {
-			return nil, err
-		}
-	}
-
 	return s, nil
 }
 
-// loadGitignoreFromDir loads .gitignore patterns from a specific directory
-func (s *Scanner) loadGitignoreFromDir(dir string) error {
-	// Check if already cached
-	if _, exists := s.gitignoreCache[dir]; exists {
-		return nil
-	}
-
-	gitignorePath := filepath.Join(dir, ".gitignore")
-	var patterns []gitignore.Pattern
-
-	// #nosec G304 -- gitignorePath is constructed from scanned directory within project
-	file, err := os.Open(gitignorePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// No .gitignore file in this directory, that's okay
-			s.gitignoreCache[dir] = patterns
-			return nil
-		}
-		return fmt.Errorf("failed to open .gitignore: %w", err)
-	}
-	defer file.Close()
-
-	// Calculate relative path from source directory to this .gitignore directory
-	// This ensures patterns are scoped to their directory, not applied globally
-	relDir, err := filepath.Rel(s.opts.SourceDir, dir)
-	if err != nil {
-		return fmt.Errorf("failed to get relative path for .gitignore domain: %w", err)
-	}
-
-	// Convert to forward slashes and split into path components for domain
-	var domain []string
-	if relDir != "." {
-		domain = strings.Split(filepath.ToSlash(relDir), "/")
-	}
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		// Skip comments and empty lines
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		// Parse pattern with domain so it only applies relative to this directory
-		pattern := gitignore.ParsePattern(line, domain)
-		patterns = append(patterns, pattern)
-	}
-
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("failed to parse .gitignore: %w", err)
-	}
-
-	// Add patterns to global excludes
-	s.excludes = append(s.excludes, patterns...)
-
-	// Cache for this directory
-	s.gitignoreCache[dir] = patterns
-
-	return nil
+// includeLiteral strips the leading "!" (negation) and "/" (anchor) from an
+// include pattern, leaving the path used for ancestor-directory descent checks.
+func includeLiteral(pattern string) string {
+	pattern = strings.TrimPrefix(pattern, "!")
+	pattern = strings.TrimPrefix(pattern, "/")
+	return pattern
 }
 
 // Scan scans the source directory and returns a list of files to sync
@@ -145,13 +95,6 @@ func (s *Scanner) Scan() ([]FileInfo, error) {
 			return nil
 		}
 
-		// When entering a directory, check for .gitignore and load it
-		if info.IsDir() && s.opts.UseGitignore {
-			if err := s.loadGitignoreFromDir(path); err != nil {
-				return fmt.Errorf("failed to load .gitignore from %s: %w", path, err)
-			}
-		}
-
 		// Get relative path
 		relPath, err := filepath.Rel(s.opts.SourceDir, path)
 		if err != nil {
@@ -161,16 +104,18 @@ func (s *Scanner) Scan() ([]FileInfo, error) {
 		// Convert to forward slashes for pattern matching
 		relPath = filepath.ToSlash(relPath)
 
-		// Check if file should be included
-		if !s.shouldInclude(relPath, info.IsDir()) {
-			if info.IsDir() {
+		// Directories are never transferred themselves; we only decide whether to
+		// walk into them. Descend only when the directory could contain an included
+		// file, so a broad allowlist still prunes junk (e.g. node_modules/).
+		if info.IsDir() {
+			if !s.descendInto(relPath) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 
-		// Skip directories in the file list (we only transfer files)
-		if info.IsDir() {
+		// Deny-by-default: a file is synced only when the allowlist includes it.
+		if !s.shouldInclude(relPath, false) {
 			return nil
 		}
 
@@ -208,34 +153,94 @@ func (s *Scanner) Scan() ([]FileInfo, error) {
 	return files, nil
 }
 
-// shouldInclude determines if a file should be included based on patterns
+// shouldInclude determines whether a path should be synced. Selection is
+// deny-by-default:
+//
+//  1. Carve-outs (exclude patterns) win — if the path is excluded, it never ships.
+//  2. Otherwise the path ships only when the allowlist (include patterns) matches.
+//  3. Anything else is denied.
 func (s *Scanner) shouldInclude(relPath string, isDir bool) bool {
 	pathParts := strings.Split(relPath, "/")
 
-	// Last matching rule wins (standard gitignore semantics)
+	// Carve-outs always win over includes.
+	if s.isExcluded(pathParts, isDir) {
+		return false
+	}
+
+	// Allowlist: ship only when an include pattern matches.
+	for _, pattern := range s.includes {
+		if pattern.Match(pathParts, isDir) == gitignore.Include {
+			return true
+		}
+	}
+
+	// Deny by default.
+	return false
+}
+
+// isExcluded reports whether the path matches a carve-out pattern, using
+// gitignore last-match-wins semantics (a later "!" negation can re-include).
+func (s *Scanner) isExcluded(pathParts []string, isDir bool) bool {
 	excluded := false
 	for _, pattern := range s.excludes {
-		result := pattern.Match(pathParts, isDir)
-		switch result {
+		switch pattern.Match(pathParts, isDir) {
 		case gitignore.Exclude:
 			excluded = true
 		case gitignore.Include:
 			excluded = false
 		}
 	}
+	return excluded
+}
 
-	// Config-level include patterns act as a final override
-	if excluded {
-		for _, pattern := range s.includes {
-			result := pattern.Match(pathParts, isDir)
-			if result == gitignore.Include {
-				return true
-			}
-		}
+// descendInto reports whether the walk should enter a directory. It descends
+// when the directory could contain an included file, so a carved-out directory
+// (e.g. node_modules/) is pruned while ancestors of an include target are not.
+func (s *Scanner) descendInto(dirRelPath string) bool {
+	pathParts := strings.Split(dirRelPath, "/")
+
+	// Carve-outs prune the whole subtree.
+	if s.isExcluded(pathParts, true) {
 		return false
 	}
 
-	// Not excluded - include by default
+	// The directory itself is directly included (e.g. include "public/").
+	for _, pattern := range s.includes {
+		if pattern.Match(pathParts, true) == gitignore.Include {
+			return true
+		}
+	}
+
+	// The directory is an ancestor of an include target. A single-segment include
+	// (bare name like "vendor" or "public/") can match at any depth, so we must
+	// descend everywhere; a multi-segment include ("public/index.php") only
+	// requires descending into its literal parent directories.
+	for _, raw := range s.rawIncludes {
+		literal := strings.TrimSuffix(raw, "/")
+		if !strings.Contains(literal, "/") {
+			return true
+		}
+		if isSegmentPrefix(pathParts, raw) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isSegmentPrefix reports whether dirParts is a leading path-segment prefix of
+// the include pattern's literal path (e.g. ["public"] is a prefix of
+// "public/index.php", so we descend into "public").
+func isSegmentPrefix(dirParts []string, pattern string) bool {
+	patternParts := strings.Split(strings.TrimSuffix(pattern, "/"), "/")
+	if len(dirParts) >= len(patternParts) {
+		return false
+	}
+	for i, part := range dirParts {
+		if part != patternParts[i] {
+			return false
+		}
+	}
 	return true
 }
 

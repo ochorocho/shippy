@@ -4,6 +4,11 @@
 rsync_src: .
 keep_releases: 2
 
+# Deny-by-default allowlist (deploy a single small file; the test only cares
+# about lock contention, not the deployed contents).
+include:
+  - composer.json
+
 commands:
   - name: Hold the lock briefly
     run: sleep 2
