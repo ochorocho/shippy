@@ -1,6 +1,7 @@
 package ssh
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -10,9 +11,10 @@ import (
 	"strings"
 	"time"
 
+	sshagent "github.com/xanzy/ssh-agent"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/ochorocho/shippy/internal/errors"
+	shippyerrors "github.com/ochorocho/shippy/internal/errors"
 )
 
 // ClientOptions represents SSH client configuration options
@@ -30,17 +32,18 @@ type ClientOptions struct {
 
 // Client represents an SSH client connection
 type Client struct {
-	client             *ssh.Client
-	config             *ssh.ClientConfig
-	host               string
-	port               int
-	user               string
-	options            map[string]string
-	multiplexing       bool
-	proxyCommand       string
-	keepaliveInterval  time.Duration
-	keepaliveCountMax  int
-	keepaliveStopChan  chan struct{}
+	client            *ssh.Client
+	config            *ssh.ClientConfig
+	host              string
+	port              int
+	user              string
+	options           map[string]string
+	multiplexing      bool
+	proxyCommand      string
+	keepaliveInterval time.Duration
+	keepaliveCountMax int
+	keepaliveStopChan chan struct{}
+	agentConn         io.Closer
 }
 
 // NewClient creates a new SSH client
@@ -55,6 +58,14 @@ func NewClient(host, user, keyPath string) (*Client, error) {
 
 // NewClientWithOptions creates a new SSH client with full options
 func NewClientWithOptions(opts ClientOptions) (*Client, error) {
+	// Capture whether the caller (.shippy.yaml's ssh_key) actually set a key path,
+	// before applySSHConfig fills it in below. github.com/kevinburke/ssh_config
+	// returns its own hardcoded ~/.ssh/identity default for IdentityFile when
+	// ~/.ssh/config has no matching entry, so opts.KeyPath is otherwise always
+	// non-empty here - that default must not be treated as an explicit user choice,
+	// or a missing ~/.ssh/identity would hard-fail even with an agent available.
+	keyPathExplicit := opts.KeyPath != ""
+
 	// Extract ProxyCommand from ssh_options if set there (takes precedence over SSH config)
 	if opts.ProxyCommand == "" && opts.SSHOptions != nil {
 		opts.ProxyCommand = opts.SSHOptions["ProxyCommand"]
@@ -68,65 +79,114 @@ func NewClientWithOptions(opts ClientOptions) (*Client, error) {
 		opts.Port = DefaultSSHPort
 	}
 
-	// Determine SSH key path
+	var authMethods []ssh.AuthMethod
+	var agentConn io.Closer
+
+	// Offer keys held by a running ssh-agent (or Windows Pageant) first. The
+	// server tries every key from every AuthMethod during publickey auth, so
+	// this is purely additive alongside a file-based key below - it lets
+	// passphrase-protected or hardware-backed keys work without ever touching
+	// the private key material on disk.
+	if sshagent.Available() {
+		if agentClient, conn, err := sshagent.New(); err == nil {
+			authMethods = append(authMethods, ssh.PublicKeysCallback(agentClient.Signers))
+			agentConn = conn
+		}
+	}
+
+	// Determine SSH key path. An explicit ssh_key is only required when no
+	// agent is available to authenticate with instead.
 	keyPath := opts.KeyPath
 	if keyPath == "" {
 		// Try to find default SSH keys
 		home, err := getUserHomeDir()
-		if err != nil {
+		if err != nil && agentConn == nil {
 			return nil, fmt.Errorf("ssh_key not specified: %w", err)
 		}
 
-		// Try common SSH key locations
-		defaultKeys := []string{
-			filepath.Join(home, ".ssh", "id_ed25519"),
-			filepath.Join(home, ".ssh", "id_rsa"),
-			filepath.Join(home, ".ssh", "id_ecdsa"),
-		}
+		if err == nil {
+			// Try common SSH key locations
+			defaultKeys := []string{
+				filepath.Join(home, ".ssh", "id_ed25519"),
+				filepath.Join(home, ".ssh", "id_rsa"),
+				filepath.Join(home, ".ssh", "id_ecdsa"),
+			}
 
-		for _, defaultKey := range defaultKeys {
-			if _, err := os.Stat(defaultKey); err == nil {
-				keyPath = defaultKey
-				break
+			for _, defaultKey := range defaultKeys {
+				if _, err := os.Stat(defaultKey); err == nil {
+					keyPath = defaultKey
+					break
+				}
 			}
 		}
 
-		if keyPath == "" {
+		if keyPath == "" && agentConn == nil {
 			return nil, fmt.Errorf("ssh_key not specified in configuration and no default SSH key found in ~/.ssh/")
 		}
 	}
 
-	// Expand home directory if needed
-	var err error
-	keyPath, err = expandHomePath(keyPath)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate key path to prevent directory traversal
-	if err := validateSSHKeyPath(keyPath); err != nil {
-		return nil, fmt.Errorf("invalid SSH key path: %w", err)
-	}
-
-	// Check if key exists
-	if _, err := os.Stat(keyPath); err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("SSH key not found at '%s'. Please check your ssh_key configuration", keyPath)
+	if keyPath != "" {
+		// Expand home directory if needed
+		var err error
+		keyPath, err = expandHomePath(keyPath)
+		if err != nil {
+			return nil, err
 		}
-		return nil, fmt.Errorf("cannot access SSH key at '%s': %w", keyPath, err)
+
+		// Validate key path to prevent directory traversal
+		if err := validateSSHKeyPath(keyPath); err != nil {
+			return nil, fmt.Errorf("invalid SSH key path: %w", err)
+		}
+
+		// Check if key exists
+		if _, err := os.Stat(keyPath); err != nil {
+			if os.IsNotExist(err) {
+				if !keyPathExplicit {
+					// Default key lookup found nothing usable; fall back to agent-only auth.
+					keyPath = ""
+				} else {
+					return nil, fmt.Errorf("SSH key not found at '%s'. Please check your ssh_key configuration", keyPath)
+				}
+			} else {
+				return nil, fmt.Errorf("cannot access SSH key at '%s': %w", keyPath, err)
+			}
+		}
 	}
 
-	// Read private key
-	// #nosec G304 -- Path is validated above with validateSSHKeyPath
-	key, err := os.ReadFile(keyPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read SSH key from '%s': %w", keyPath, err)
+	if keyPath != "" {
+		// Read private key
+		// #nosec G304 -- Path is validated above with validateSSHKeyPath
+		key, err := os.ReadFile(keyPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read SSH key from '%s': %w", keyPath, err)
+		}
+
+		// Parse private key
+		signer, err := ssh.ParsePrivateKey(key)
+		if err != nil {
+			var passphraseErr *ssh.PassphraseMissingError
+			if errors.As(err, &passphraseErr) && agentConn != nil {
+				// The key on disk is encrypted and we have no passphrase to unlock it,
+				// but ssh-agent is available and may already hold the decrypted key
+				// (e.g. via `ssh-add`). Skip the file-based auth method rather than
+				// failing hard - the agent-backed AuthMethod above still applies.
+				fmt.Fprintf(os.Stderr, "  • SSH key '%s' is passphrase-protected; relying on ssh-agent for it instead\n", keyPath)
+			} else if errors.As(err, &passphraseErr) {
+				return nil, fmt.Errorf("failed to parse SSH key from '%s': %w (key is passphrase-protected; unlock it via ssh-agent, e.g. `ssh-add %s`)", keyPath, err, keyPath)
+			} else {
+				return nil, fmt.Errorf("failed to parse SSH key from '%s': %w (make sure this is a private key, not a .pub file)", keyPath, err)
+			}
+			keyPath = ""
+		} else {
+			authMethods = append(authMethods, ssh.PublicKeys(signer))
+		}
 	}
 
-	// Parse private key
-	signer, err := ssh.ParsePrivateKey(key)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse SSH key from '%s': %w (make sure this is a private key, not a .pub file)", keyPath, err)
+	if len(authMethods) == 0 {
+		if agentConn != nil {
+			_ = agentConn.Close()
+		}
+		return nil, fmt.Errorf("no SSH authentication method available: no usable ssh_key and no ssh-agent running")
 	}
 
 	// Extract UserKnownHostsFile from ssh_options if specified
@@ -142,19 +202,25 @@ func NewClientWithOptions(opts ClientOptions) (*Client, error) {
 	if opts.ProxyCommand != "" {
 		fmt.Fprintf(os.Stderr, "  • ProxyCommand: %s\n", opts.ProxyCommand)
 	}
-	fmt.Fprintf(os.Stderr, "  • SSH key: %s\n", keyPath)
+	if keyPath != "" {
+		fmt.Fprintf(os.Stderr, "  • SSH key: %s\n", keyPath)
+	}
+	if agentConn != nil {
+		fmt.Fprintf(os.Stderr, "  • SSH agent: available\n")
+	}
 
 	// Create host key callback with proper verification
 	hostKeyCallback, err := createHostKeyCallback(&opts)
 	if err != nil {
+		if agentConn != nil {
+			_ = agentConn.Close()
+		}
 		return nil, fmt.Errorf("failed to create host key verification: %w", err)
 	}
 
 	config := &ssh.ClientConfig{
-		User: opts.User,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(signer),
-		},
+		User:            opts.User,
+		Auth:            authMethods,
 		HostKeyCallback: hostKeyCallback,
 	}
 
@@ -164,6 +230,9 @@ func NewClientWithOptions(opts ClientOptions) (*Client, error) {
 	if timeoutStr, ok := opts.SSHOptions["ConnectTimeout"]; ok {
 		timeout, err := parseTimeout(timeoutStr)
 		if err != nil {
+			if agentConn != nil {
+				_ = agentConn.Close()
+			}
 			return nil, fmt.Errorf("invalid ConnectTimeout value '%s': %w", timeoutStr, err)
 		}
 		config.Timeout = timeout
@@ -177,6 +246,9 @@ func NewClientWithOptions(opts ClientOptions) (*Client, error) {
 	if intervalStr, ok := opts.SSHOptions["ServerAliveInterval"]; ok {
 		interval, err := parseTimeout(intervalStr)
 		if err != nil {
+			if agentConn != nil {
+				_ = agentConn.Close()
+			}
 			return nil, fmt.Errorf("invalid ServerAliveInterval value '%s': %w", intervalStr, err)
 		}
 		keepaliveInterval = interval
@@ -209,6 +281,7 @@ func NewClientWithOptions(opts ClientOptions) (*Client, error) {
 		proxyCommand:      opts.ProxyCommand,
 		keepaliveInterval: keepaliveInterval,
 		keepaliveCountMax: keepaliveCountMax,
+		agentConn:         agentConn,
 	}, nil
 }
 
@@ -225,19 +298,19 @@ func (c *Client) Connect() error {
 		// making the connection rather than the Go runtime's direct syscalls.
 		conn, err := dialProxy(c.proxyCommand, c.host, c.port)
 		if err != nil {
-			return errors.SSHError(fmt.Sprintf("connecting to %s@%s via ProxyCommand", c.user, addr), err)
+			return shippyerrors.SSHError(fmt.Sprintf("connecting to %s@%s via ProxyCommand", c.user, addr), err)
 		}
 		sshConn, chans, reqs, err := ssh.NewClientConn(conn, addr, c.config)
 		if err != nil {
 			_ = conn.Close()
-			return errors.SSHError(fmt.Sprintf("SSH handshake with %s@%s", c.user, addr), err)
+			return shippyerrors.SSHError(fmt.Sprintf("SSH handshake with %s@%s", c.user, addr), err)
 		}
 		client = ssh.NewClient(sshConn, chans, reqs)
 	} else {
 		var err error
 		client, err = ssh.Dial("tcp", addr, c.config)
 		if err != nil {
-			return errors.SSHError(fmt.Sprintf("connecting to %s@%s", c.user, addr), err)
+			return shippyerrors.SSHError(fmt.Sprintf("connecting to %s@%s", c.user, addr), err)
 		}
 	}
 
@@ -260,6 +333,11 @@ func (c *Client) Close() error {
 		c.keepaliveStopChan = nil
 	}
 
+	if c.agentConn != nil {
+		_ = c.agentConn.Close()
+		c.agentConn = nil
+	}
+
 	if c.client != nil {
 		return c.client.Close()
 	}
@@ -270,14 +348,14 @@ func (c *Client) Close() error {
 func (c *Client) RunCommand(cmd string) (string, error) {
 	session, err := c.client.NewSession()
 	if err != nil {
-		return "", errors.SSHError("creating SSH session", err)
+		return "", shippyerrors.SSHError("creating SSH session", err)
 	}
 	defer session.Close()
 
 	output, err := session.CombinedOutput(cmd)
 	if err != nil {
 		outputStr := strings.TrimSpace(string(output))
-		return outputStr, errors.CommandError(cmd, outputStr, err)
+		return outputStr, shippyerrors.CommandError(cmd, outputStr, err)
 	}
 
 	return string(output), nil

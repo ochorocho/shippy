@@ -59,7 +59,7 @@ require (
 	github.com/skeema/knownhosts v1.3.2 // indirect
 	github.com/soniakeys/quant v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/xanzy/ssh-agent v0.3.3 // indirect
+	github.com/xanzy/ssh-agent v0.3.3
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/image v0.41.0 // indirect
 	golang.org/x/net v0.56.0 // indirect
