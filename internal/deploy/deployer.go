@@ -184,20 +184,27 @@ func (d *Deployer) Deploy() error {
 
 		executor := ssh.NewExecutor(client)
 
-		// Convert config commands to SSH commands
-		commands := make([]ssh.Command, len(d.config.Commands))
-		for i, cmd := range d.config.Commands {
-			commands[i] = ssh.Command{
+		// Convert config commands to SSH commands, skipping any not enabled
+		// for this host via only/except.
+		var commands []ssh.Command
+		for _, cmd := range d.config.Commands {
+			if !cmd.AppliesToHost(d.hostName) {
+				out.Info("  Skipping %s (not enabled for %s)", cmd.Name, d.hostName)
+				continue
+			}
+			commands = append(commands, ssh.Command{
 				Name:    cmd.Name,
 				Run:     cmd.Run,
 				Context: d.config.GetCommandContext(d.host, cmd),
-			}
+			})
 		}
 
 		// Execute commands in the specific release directory (NOT the current symlink)
 		// This ensures commands run against the new release before it goes live
-		if err := executor.Execute(commands, releasePath); err != nil {
-			return fmt.Errorf("command execution failed: %w", err)
+		if len(commands) > 0 {
+			if err := executor.Execute(commands, releasePath); err != nil {
+				return fmt.Errorf("command execution failed: %w", err)
+			}
 		}
 	}
 

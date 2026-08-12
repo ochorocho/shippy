@@ -135,7 +135,7 @@ func runValidate(cmd *cobra.Command, args []string) error {
 	if len(cfg.Commands) > 0 {
 		fmt.Printf("Configured commands (%d):\n", len(cfg.Commands))
 		for i, cmd := range cfg.Commands {
-			fmt.Printf("  %d. %s\n", i+1, cmd.Name)
+			fmt.Printf("  %d. %s%s\n", i+1, cmd.Name, formatCommandScope(cmd))
 			fmt.Printf("     %s\n", cmd.Run)
 		}
 	}
@@ -143,7 +143,7 @@ func runValidate(cmd *cobra.Command, args []string) error {
 	if len(cfg.RollbackCommands) > 0 {
 		fmt.Printf("Configured rollback commands (%d):\n", len(cfg.RollbackCommands))
 		for i, cmd := range cfg.RollbackCommands {
-			fmt.Printf("  %d. %s\n", i+1, cmd.Name)
+			fmt.Printf("  %d. %s%s\n", i+1, cmd.Name, formatCommandScope(cmd))
 			fmt.Printf("     %s\n", cmd.Run)
 		}
 	}
@@ -248,27 +248,51 @@ func buildResolvedHostConfig(cfg *config.Config, host *config.Host, hostName str
 		}
 	}
 
-	// Commands
+	// Commands (only those enabled for this host via only/except)
 	if len(cfg.Commands) > 0 {
 		sb.WriteString("\n# Commands\n")
 		sb.WriteString("commands:\n")
 		for _, cmd := range cfg.Commands {
+			if !cmd.AppliesToHost(hostName) {
+				sb.WriteString(fmt.Sprintf("  # - %s (skipped: not enabled for %s)\n", cmd.Name, hostName))
+				continue
+			}
 			sb.WriteString(fmt.Sprintf("  - name: %s\n", cmd.Name))
 			sb.WriteString(fmt.Sprintf("    run: %s\n", cmd.Run))
 		}
 	}
 
-	// Rollback commands
+	// Rollback commands (only those enabled for this host via only/except)
 	if len(cfg.RollbackCommands) > 0 {
 		sb.WriteString("\n# Rollback Commands\n")
 		sb.WriteString("rollback_commands:\n")
 		for _, cmd := range cfg.RollbackCommands {
+			if !cmd.AppliesToHost(hostName) {
+				sb.WriteString(fmt.Sprintf("  # - %s (skipped: not enabled for %s)\n", cmd.Name, hostName))
+				continue
+			}
 			sb.WriteString(fmt.Sprintf("  - name: %s\n", cmd.Name))
 			sb.WriteString(fmt.Sprintf("    run: %s\n", cmd.Run))
 		}
 	}
 
 	return sb.String()
+}
+
+// formatCommandScope renders a human-readable " (only: ...)" / " (except: ...)"
+// suffix for a command's host filters, or "" if unrestricted.
+func formatCommandScope(cmd config.Command) string {
+	var parts []string
+	if len(cmd.Only) > 0 {
+		parts = append(parts, fmt.Sprintf("only: %s", strings.Join(cmd.Only, ", ")))
+	}
+	if len(cmd.Except) > 0 {
+		parts = append(parts, fmt.Sprintf("except: %s", strings.Join(cmd.Except, ", ")))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" (%s)", strings.Join(parts, "; "))
 }
 
 func formatStringSlice(slice []string) string {
@@ -280,4 +304,3 @@ func formatStringSlice(slice []string) string {
 	}
 	return fmt.Sprintf("[\"%s\"]", strings.Join(slice, "\", \""))
 }
-
