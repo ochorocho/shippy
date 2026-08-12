@@ -9,6 +9,7 @@ based PHP projects, inspired by Deployer and Capistrano.
 
 - **Zero-downtime deployments** with atomic releases
 - **Release management** - keeps last N releases with easy rollback
+- **Deployment locking** - prevents concurrent deployments to the same host
 - **Shared files/directories** - persistent data between releases
 - **Template variables** from composer.json
 - **Pure Go implementation** - single binary, no dependencies
@@ -461,6 +462,18 @@ hosts:
 
 **Note:** The `port` field is a top-level configuration option for convenience. For other SSH options, use the `ssh_options` map.
 
+### SSH Multiplexing
+
+By default, Shippy opens a fresh SSH connection for each remote operation. Set `ssh_multiplexing: true` to reuse a single shared connection (SSH `ControlMaster`) for all operations against a host, which noticeably reduces overhead on high-latency links or deployments that run many commands:
+
+```yaml
+hosts:
+  production:
+    hostname: example.com
+    remote_user: deploy
+    ssh_multiplexing: true   # Reuse one connection for all operations (default: false)
+```
+
 ### Template Variables
 
 Use `{{key.path}}` syntax to reference values from composer.json:
@@ -518,6 +531,25 @@ shared:
   - public/uploads/
 ```
 
+### Deployment Locking
+
+To prevent two deployments from running against the same host at once, Shippy writes a lock file to the remote `deploy_path` at the start of a deploy and removes it when finished. Locking is **enabled by default** with a 15-minute timeout, after which a stale lock (e.g. from a crashed deployment) is considered expired and automatically overridden.
+
+```yaml
+# Global defaults (can be overridden per host)
+lock_enabled: true    # Enable deployment locking (default: true)
+lock_timeout: 15      # Minutes before a stale lock expires (default: 15)
+
+hosts:
+  production:
+    hostname: example.com
+    remote_user: deploy
+    deploy_path: /var/www/myproject
+    # lock_enabled: false   # Per-host override to disable locking
+```
+
+If a deployment fails and leaves a stale lock behind before the timeout elapses, clear it manually with [`shippy unlock`](#unlock).
+
 ### Directory Structure
 
 Shippy creates the following structure on the server (following Deployer/Capistrano conventions):
@@ -566,12 +598,19 @@ Deploy to a target host:
 shippy deploy <hostname>
 ```
 
+Options:
+- `--dry-run` - Preview which files and commands would be deployed without connecting to the host
+- `--verbose` or `-v` - Show detailed output for each file
+
 Example:
 
 ```bash
 shippy deploy staging
 shippy deploy production
+shippy deploy production --dry-run   # Preview files and commands, no connection
 ```
+
+When run without a host argument, an interactive host selector is shown.
 
 ### Rollback
 
@@ -608,6 +647,12 @@ shippy backup <hostname>
 ```
 
 The output file is named `backup-<hostname>-<timestamp>.zip` and is written to the configured `output:` directory (default: current working directory).
+
+Options:
+- `--output` or `-o` - Output directory for the backup ZIP (overrides the configured `output:`)
+- `--skip-database` - Skip the database dump
+- `--skip-shared` - Skip the shared files
+- `--verbose` or `-v` - Show detailed output
 
 Configuration in `.shippy.yaml`:
 
@@ -714,6 +759,61 @@ This command:
 - Tests composer.json template variables
 - Shows processed configuration
 
+### Show Configuration
+
+Print the complete resolved configuration with all defaults applied and template variables replaced:
+
+```bash
+shippy config show              # Complete config with resolved templates
+shippy config show production   # Effective config for a single host (globals + per-host overrides)
+shippy config show --raw        # Raw config without resolving template variables
+```
+
+For a single host, the output lists only the commands that actually apply to that host (given each command's `only`/`except` filters); skipped commands are shown as comments.
+
+### Unlock
+
+Force-remove a stale deployment lock from a host (see [Deployment Locking](#deployment-locking)):
+
+```bash
+shippy unlock <hostname>
+```
+
+Example:
+
+```bash
+shippy unlock                  # Interactive host selection
+shippy unlock production
+```
+
+Use this only when a deployment failed and left a lock behind. Running it while a deployment is genuinely in progress may cause issues. If no active lock exists, the command reports that and exits without changes.
+
+### Environment
+
+Print all environment variables available to Shippy. Useful for debugging configuration that uses `${ENV_VAR}` substitution:
+
+```bash
+shippy env
+shippy env | grep DEPLOY
+```
+
+### Version
+
+Print the version, git commit, build date, and Go version:
+
+```bash
+shippy version
+shippy --version   # or -v
+```
+
+### Global Options
+
+`--config <path>` selects a different configuration file (default: `.shippy.yaml`). It is available on every command:
+
+```bash
+shippy --config .shippy.staging.yaml deploy staging
+```
+
 ## Deployment Process
 
 When you run `shippy deploy <host>`, the following steps occur:
@@ -762,6 +862,66 @@ commands:
   - name: Run extension setup
     run: ./vendor/bin/typo3 extension:setup
 ```
+
+### Complete TYPO3 Include List
+
+Under deny-by-default you must explicitly list every path a Composer-based TYPO3
+installation needs to run. The block below is the complete allowlist for a
+standard project, with each entry annotated. Copy it and delete the optional
+lines that don't apply to your project.
+
+```yaml
+hosts:
+  production:
+    hostname: www.example.com
+    remote_user: deploy
+    deploy_path: /var/www/{{name}}
+    rsync_src: ./
+
+    include:
+      # --- Required: a Composer TYPO3 install will not boot without these ---
+      - public/          # Web root: index.php, typo3/, _assets/, installed extensions' Resources/Public
+      - vendor/          # All Composer dependencies incl. typo3/cms-core and vendor/bin/typo3
+                         # (the server does NOT run "composer install")
+      - config/          # Site config (config/sites/*/config.yaml) + system config (config/system/*.php)
+      - composer.json    # TYPO3 reads it for package metadata / extension autoloading
+      - composer.lock    # Pins the installed set; used by post-deploy commands
+
+      # --- Optional: uncomment the ones your project actually uses ---
+      # - packages/      # Local site extensions kept in the repo (monorepo layout)
+      # - .htaccess      # Root .htaccess, if you serve from the project root
+      # - api/           # Additional entry points / sub-apps outside public/
+
+    # Carve-outs: excludes always win over includes. Common junk (.git/,
+    # node_modules/, var/cache/, var/log/, .DS_Store, ...) is already excluded
+    # automatically, so you only need project-specific holes here.
+    exclude:
+      - public/typo3temp/   # Generated at runtime, never ship it
+
+    # Runtime/persistent data — symlinked from shared/, never part of a release
+    shared:
+      - .env
+      - var/log/
+      - var/session/
+      - public/fileadmin/
+      - public/uploads/
+
+commands:
+  - name: Run extension setup
+    run: ./vendor/bin/typo3 extension:setup
+
+  - name: Run upgrade wizards
+    run: ./vendor/bin/typo3 upgrade:run
+
+  - name: Flush caches
+    run: ./vendor/bin/typo3 cache:flush
+```
+
+> **Note:** If your project uses a non-standard web directory (configured via the
+> `extra.typo3/cms.web-dir` key in `composer.json`, e.g. `web/` instead of
+> `public/`), include that directory instead of `public/`. Run
+> `shippy deploy <host> --dry-run` to preview exactly which files the allowlist
+> resolves to before deploying.
 
 ### Advanced Configuration
 
