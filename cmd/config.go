@@ -193,7 +193,7 @@ func showCompleteConfig(cfg *config.Config, out *ui.Output) error {
 	out.Header("Complete Configuration (with defaults applied)")
 	out.EmptyLine()
 
-	data, err := yaml.Marshal(cfg)
+	data, err := yaml.Marshal(cfg.Redacted())
 	if err != nil {
 		return fmt.Errorf("failed to generate YAML: %w", err)
 	}

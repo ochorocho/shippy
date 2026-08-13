@@ -25,6 +25,20 @@ type BackupDatabaseConfig struct {
 	Options       map[string]string `yaml:"options,omitempty"`        // DBMS-specific options
 }
 
+const redactedSecret = "***REDACTED***"
+
+// redacted returns a copy of the backup config with the database password
+// replaced with a placeholder, safe to print or log.
+func (b *BackupConfig) redacted() *BackupConfig {
+	redacted := *b
+	if redacted.Database != nil && redacted.Database.Password != "" {
+		db := *redacted.Database
+		db.Password = redactedSecret
+		redacted.Database = &db
+	}
+	return &redacted
+}
+
 // GetBackup returns backup config (per-host override or global default)
 func (c *Config) GetBackup(host *Host) *BackupConfig {
 	if host.Backup != nil {

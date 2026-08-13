@@ -375,6 +375,30 @@ func (c *Config) ApplyDefaults() {
 	}
 }
 
+// Redacted returns a copy of the config with secret values (e.g. backup
+// database passwords) replaced with a placeholder. Safe to print or log,
+// unlike marshalling the config directly.
+func (c *Config) Redacted() *Config {
+	redacted := *c
+
+	if redacted.Backup != nil {
+		redacted.Backup = redacted.Backup.redacted()
+	}
+
+	if redacted.Hosts != nil {
+		hosts := make(map[string]Host, len(redacted.Hosts))
+		for name, host := range redacted.Hosts {
+			if host.Backup != nil {
+				host.Backup = host.Backup.redacted()
+			}
+			hosts[name] = host
+		}
+		redacted.Hosts = hosts
+	}
+
+	return &redacted
+}
+
 // GetComposerPath returns the resolved composer.json path
 // Supports both relative (to config file) and absolute paths
 func (c *Config) GetComposerPath() string {
