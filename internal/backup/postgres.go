@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -28,10 +29,21 @@ func NewPostgresDumper(client *ssh.Client, creds *DatabaseCredentials) (*Postgre
 
 	addr := fmt.Sprintf("%s:%d", creds.Host, port)
 
-	connConfig, err := pgx.ParseConfig(fmt.Sprintf(
-		"postgres://%s:%s@%s:%d/%s?sslmode=disable",
-		creds.User, creds.Password, creds.Host, port, creds.Name,
-	))
+	// Build the DSN via url.URL rather than Sprintf: creds.User/Password/Name
+	// can legitimately contain characters that are special in a "postgres://"
+	// URL (@, /, :, #, ?). url.UserPassword and the URL encoder percent-encode
+	// them so pgx.ParseConfig round-trips them correctly instead of silently
+	// mis-parsing the DSN (e.g. a password containing "@" splitting into the
+	// wrong host/database).
+	dsn := (&url.URL{
+		Scheme:   "postgres",
+		User:     url.UserPassword(creds.User, creds.Password),
+		Host:     addr,
+		Path:     "/" + creds.Name,
+		RawQuery: "sslmode=disable",
+	}).String()
+
+	connConfig, err := pgx.ParseConfig(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse PostgreSQL config: %w", err)
 	}
