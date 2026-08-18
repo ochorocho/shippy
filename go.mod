@@ -2,6 +2,8 @@ module github.com/ochorocho/shippy
 
 go 1.26
 
+toolchain go1.26.6
+
 require (
 	github.com/blacktop/go-termimg v0.1.26
 	github.com/charmbracelet/bubbletea v1.3.10
