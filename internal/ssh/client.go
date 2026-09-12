@@ -81,15 +81,20 @@ func NewClientWithOptions(opts ClientOptions) (*Client, error) {
 
 	var authMethods []ssh.AuthMethod
 	var agentConn io.Closer
+	var agentSigners func() ([]ssh.Signer, error)
 
-	// Offer keys held by a running ssh-agent (or Windows Pageant) first. The
-	// server tries every key from every AuthMethod during publickey auth, so
-	// this is purely additive alongside a file-based key below - it lets
-	// passphrase-protected or hardware-backed keys work without ever touching
-	// the private key material on disk.
+	// Capture the signers held by a running ssh-agent (or Windows Pageant), if
+	// any. These are combined with the file-based key into a SINGLE publickey
+	// AuthMethod below - deliberately not registered as their own method.
+	// golang.org/x/crypto/ssh identifies auth methods by their RFC 4252 name and
+	// makes only one "publickey" attempt: once the first publickey AuthMethod is
+	// tried, every other publickey AuthMethod is skipped (see the authenticate()
+	// loop in client_auth.go). Registering the agent and the file key as two
+	// separate methods therefore lets an empty - or wrong-key - agent silently
+	// consume that single attempt, so the configured ssh_key is never offered.
 	if sshagent.Available() {
 		if agentClient, conn, err := sshagent.New(); err == nil {
-			authMethods = append(authMethods, ssh.PublicKeysCallback(agentClient.Signers))
+			agentSigners = agentClient.Signers
 			agentConn = conn
 		}
 	}
@@ -153,6 +158,7 @@ func NewClientWithOptions(opts ClientOptions) (*Client, error) {
 		}
 	}
 
+	var fileSigners []ssh.Signer
 	if keyPath != "" {
 		// Read private key
 		// #nosec G304 -- Path is validated above with validateSSHKeyPath
@@ -168,8 +174,8 @@ func NewClientWithOptions(opts ClientOptions) (*Client, error) {
 			if errors.As(err, &passphraseErr) && agentConn != nil {
 				// The key on disk is encrypted and we have no passphrase to unlock it,
 				// but ssh-agent is available and may already hold the decrypted key
-				// (e.g. via `ssh-add`). Skip the file-based auth method rather than
-				// failing hard - the agent-backed AuthMethod above still applies.
+				// (e.g. via `ssh-add`). Skip the file-based key rather than failing
+				// hard - the agent-held signers below still apply.
 				fmt.Fprintf(os.Stderr, "  • SSH key '%s' is passphrase-protected; relying on ssh-agent for it instead\n", keyPath)
 			} else if errors.As(err, &passphraseErr) {
 				return nil, fmt.Errorf("failed to parse SSH key from '%s': %w (key is passphrase-protected; unlock it via ssh-agent, e.g. `ssh-add %s`)", keyPath, err, keyPath)
@@ -178,8 +184,25 @@ func NewClientWithOptions(opts ClientOptions) (*Client, error) {
 			}
 			keyPath = ""
 		} else {
-			authMethods = append(authMethods, ssh.PublicKeys(signer))
+			fileSigners = append(fileSigners, signer)
 		}
+	}
+
+	// Combine the ssh-agent signers and the file-based key into ONE publickey
+	// AuthMethod so all of them are offered within a single publickey attempt.
+	// Registering them separately would let x/crypto/ssh try only the first (see
+	// the note where agentSigners is captured above). The callback re-queries the
+	// agent lazily on each attempt, preserving the original agent-first ordering.
+	if agentSigners != nil || len(fileSigners) > 0 {
+		authMethods = append(authMethods, ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
+			var signers []ssh.Signer
+			if agentSigners != nil {
+				if agentKeys, err := agentSigners(); err == nil {
+					signers = append(signers, agentKeys...)
+				}
+			}
+			return append(signers, fileSigners...), nil
+		}))
 	}
 
 	if len(authMethods) == 0 {

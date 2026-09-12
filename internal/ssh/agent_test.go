@@ -1,9 +1,11 @@
 package ssh
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/pem"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -250,8 +252,12 @@ func TestNewClientWithOptions_FileKeyAndAgent_BothOffered(t *testing.T) {
 	}
 	defer client.Close()
 
-	if len(client.config.Auth) != 2 {
-		t.Fatalf("expected both agent and file key to be offered (2 auth methods), got %d", len(client.config.Auth))
+	// Agent signers and the file key must be combined into a SINGLE publickey
+	// AuthMethod. Registering them as two separate methods regresses to the bug
+	// where x/crypto/ssh only ever tries the first publickey method, so an empty
+	// or wrong-key agent prevents the configured ssh_key from being offered.
+	if len(client.config.Auth) != 1 {
+		t.Fatalf("expected agent and file key to be combined into 1 auth method, got %d", len(client.config.Auth))
 	}
 }
 
@@ -277,6 +283,102 @@ func TestNewClientWithOptions_FileKeyOnly_NoAgent_StillWorks(t *testing.T) {
 	}
 	if client.agentConn != nil {
 		t.Fatal("expected agentConn to be nil when no ssh-agent is available")
+	}
+}
+
+// startSSHServer stands up an in-process SSH server on 127.0.0.1 that accepts
+// publickey auth only for authorizedKey. It returns the host and port to dial.
+// Accepted connections complete the handshake and then discard all channels and
+// global requests, which is enough for NewClient/Connect to succeed.
+var errKeyNotAuthorized = errors.New("key not authorized")
+
+func startSSHServer(t *testing.T, authorizedKey ssh.PublicKey) (string, int) {
+	t.Helper()
+
+	hostSigner, err := ssh.NewSignerFromKey(generateEd25519Key(t))
+	if err != nil {
+		t.Fatalf("failed to build host signer: %v", err)
+	}
+
+	authorized := authorizedKey.Marshal()
+	config := &ssh.ServerConfig{
+		PublicKeyCallback: func(_ ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			if bytes.Equal(key.Marshal(), authorized) {
+				return &ssh.Permissions{}, nil
+			}
+			return nil, errKeyNotAuthorized
+		},
+	}
+	config.AddHostKey(hostSigner)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to start SSH server listener: %v", err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				sshConn, chans, reqs, err := ssh.NewServerConn(conn, config)
+				if err != nil {
+					_ = conn.Close()
+					return
+				}
+				go ssh.DiscardRequests(reqs)
+				go func() {
+					for newChan := range chans {
+						_ = newChan.Reject(ssh.Prohibited, "no channels in test server")
+					}
+				}()
+				_ = sshConn.Wait()
+			}()
+		}
+	}()
+
+	addr := listener.Addr().(*net.TCPAddr)
+	return "127.0.0.1", addr.Port
+}
+
+// TestNewClientWithOptions_EmptyAgentDoesNotShadowFileKey is the end-to-end
+// regression test for the reported v0.1.2 failure: with an ssh-agent available
+// but holding NO keys, the configured ssh_key must still authenticate. Before the
+// fix the agent and file key were two separate publickey AuthMethods, and
+// x/crypto/ssh only ever tries the first one - so the empty agent silently
+// consumed the single publickey attempt and the file key was never offered,
+// producing "attempted methods [none publickey], no supported methods remain".
+func TestNewClientWithOptions_EmptyAgentDoesNotShadowFileKey(t *testing.T) {
+	emptyHomeDir(t)
+	// Agent is reachable but empty (macOS default: keys aren't auto-loaded).
+	startFakeAgent(t)
+
+	clientKey := generateEd25519Key(t)
+	keyPath := writeUnencryptedKeyFile(t, clientKey)
+
+	clientPub, err := ssh.NewPublicKey(clientKey.Public())
+	if err != nil {
+		t.Fatalf("failed to derive client public key: %v", err)
+	}
+	host, port := startSSHServer(t, clientPub)
+
+	client, err := NewClientWithOptions(ClientOptions{
+		Host:       host,
+		Port:       port,
+		User:       "deploy",
+		KeyPath:    keyPath,
+		SSHOptions: map[string]string{"StrictHostKeyChecking": "no"},
+	})
+	if err != nil {
+		t.Fatalf("client construction failed: %v", err)
+	}
+	defer client.Close()
+
+	if err := client.Connect(); err != nil {
+		t.Fatalf("expected file-key auth to succeed despite empty agent, got: %v", err)
 	}
 }
 
