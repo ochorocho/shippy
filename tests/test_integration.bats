@@ -227,7 +227,7 @@ EOF
 
   # The manifest lives in .shippy/, never inside the promoted .cache/.
   run docker compose -f "${BATS_TEST_DIRNAME}/docker-compose.yaml" exec -T typo3-shippy-apache \
-    test -f /var/www/html/.shippy/manifest.json
+    test -f /var/www/html/.shippy/cache-manifest.json
   assert_success
 
   rm -f cache-test.yaml
