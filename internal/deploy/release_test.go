@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -63,6 +64,37 @@ func TestCreateReleaseMakesDirs(t *testing.T) {
 	}
 	if !f.madeDir(releasePath) {
 		t.Errorf("expected release dir %q created, mkdirs: %v", releasePath, f.mkdirs)
+	}
+}
+
+// Two deploys in the same second must not reuse a release directory: reusing a
+// populated dir lets the mtime-based cache->release rsync ship stale content.
+// A numeric suffix disambiguates while preserving lexical (chronological) order.
+func TestCreateReleaseAvoidsSameSecondCollision(t *testing.T) {
+	probes := 0
+	f := &fakeClient{respond: func(cmd string) (string, error) {
+		if strings.HasPrefix(strings.TrimSpace(cmd), "test -e") {
+			probes++
+			if probes == 1 {
+				return "exists\n", nil // base timestamp already taken by a prior deploy
+			}
+			return "", nil // the suffixed candidate is free
+		}
+		return "", nil
+	}}
+	r := NewReleaseManager(f, spacedDeploy)
+
+	releasePath, err := r.CreateRelease()
+	if err != nil {
+		t.Fatalf("CreateRelease() error = %v", err)
+	}
+
+	// Must fall back to a suffixed name rather than reuse the taken base dir.
+	if name := filepath.Base(releasePath); !strings.Contains(name, ".") {
+		t.Fatalf("expected a suffixed release name to avoid the collision, got %q", name)
+	}
+	if !f.madeDir(releasePath) {
+		t.Fatalf("expected the unique release dir %q to be created, mkdirs: %v", releasePath, f.mkdirs)
 	}
 }
 

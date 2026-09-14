@@ -155,3 +155,134 @@ teardown() {
   [ "$success_count" -eq 1 ]
   [ "$locked_count" -eq 1 ]
 }
+
+@test "Checksum cache: CI mtime reset skips uploads, changed same-size file is not skipped" {
+  set -eu -o pipefail
+
+  # Reproduces issue #34 end to end. The old code compared size+mtime, which:
+  #   1. re-uploaded every file in CI (a fresh checkout resets all mtimes), and
+  #   2. could skip a file that changed but kept the same size with an older
+  #      mtime, silently deploying stale content.
+  # The checksum manifest must fix both.
+  cd "$BATS_TEST_DIRNAME/config-test"
+
+  # Small, stable source tree. settings.php holds a 10-byte payload we later
+  # rewrite in place to the same length.
+  src="${BATS_TMPDIR}/shippy-cache-src"
+  rm -rf "$src"
+  mkdir -p "$src/app"
+  printf 'alpha\n' > "$src/app/a.txt"
+  printf 'beta\n'  > "$src/app/b.txt"
+  printf "['x'=>1];\n" > "$src/app/settings.php"
+
+  # Fast config: deploy the app/ tree only, no TYPO3 setup commands.
+  cat > cache-test.yaml <<EOF
+rsync_src: ${src}
+keep_releases: 2
+include:
+  - app/
+commands:
+  - name: noop
+    run: "true"
+hosts:
+  production:
+    hostname: 127.0.0.1
+    port: 2424
+    remote_user: root
+    deploy_path: /var/www/html
+    ssh_key: ../ssh_keys/shippy_key
+    ssh_options:
+      StrictHostKeyChecking: accept-new
+EOF
+
+  # First deploy: empty cache, all three files upload.
+  run ${BIN} deploy production --config cache-test.yaml
+  assert_success
+  assert_output --partial "Found 3 files to upload"
+
+  # Simulate a fresh CI checkout: every file gets a brand-new (newer) mtime.
+  find "$src" -type f -exec touch {} +
+
+  # Second deploy: identical content, so the checksum cache must skip all three
+  # despite every mtime now being newer than the cache.
+  run ${BIN} deploy production --config cache-test.yaml
+  assert_success
+  assert_output --partial "0 new/changed files, 3 unchanged (cached)"
+  assert_output --partial "No files to upload - all files are cached"
+
+  # Change one file to the SAME size but an OLDER mtime, the exact shape the old
+  # mtime comparison wrongly skipped. Checksum must catch it.
+  printf "['x'=>9];\n" > "$src/app/settings.php"
+  touch -t 200001010000 "$src/app/settings.php"
+
+  run ${BIN} deploy production --config cache-test.yaml
+  assert_success
+  assert_output --partial "1 new/changed files, 2 unchanged (cached)"
+
+  # The activated release must have the new content, not the stale one.
+  run docker compose -f "${BATS_TEST_DIRNAME}/docker-compose.yaml" exec -T typo3-shippy-apache \
+    cat /var/www/html/current/app/settings.php
+  assert_success
+  assert_output --partial "['x'=>9];"
+
+  # The manifest lives in .shippy/, never inside the promoted .cache/.
+  run docker compose -f "${BATS_TEST_DIRNAME}/docker-compose.yaml" exec -T typo3-shippy-apache \
+    test -f /var/www/html/.shippy/cache-manifest.json
+  assert_success
+
+  rm -f cache-test.yaml
+}
+
+@test "Symlinks are shipped as symlinks (Composer/TYPO3 runtime links)" {
+  set -eu -o pipefail
+
+  # A Composer/TYPO3 deploy relies on relative runtime symlinks like
+  # public/_assets/* -> ../../vendor/.../Resources/Public. They must reach the
+  # server as symlinks (not dereferenced, not dropped), or the site is broken
+  # unless composer runs remotely.
+  cd "$BATS_TEST_DIRNAME/config-test"
+
+  src="${BATS_TMPDIR}/shippy-symlink-src"
+  rm -rf "$src"
+  mkdir -p "$src/app/vendor/pkg" "$src/app/public/_assets"
+  printf 'REALCSS\n' > "$src/app/vendor/pkg/style.css"
+  ln -s ../../vendor/pkg/style.css "$src/app/public/_assets/pkg.css"
+
+  cat > symlink-test.yaml <<EOF
+rsync_src: ${src}
+keep_releases: 2
+include:
+  - app/
+commands:
+  - name: noop
+    run: "true"
+hosts:
+  production:
+    hostname: 127.0.0.1
+    port: 2424
+    remote_user: root
+    deploy_path: /var/www/html
+    ssh_key: ../ssh_keys/shippy_key
+    ssh_options:
+      StrictHostKeyChecking: accept-new
+EOF
+
+  run ${BIN} deploy production --config symlink-test.yaml
+  assert_success
+
+  link=/var/www/html/current/app/public/_assets/pkg.css
+
+  # The deployed path is a symlink, not a regular file (would-be dereference).
+  run docker compose -f "${BATS_TEST_DIRNAME}/docker-compose.yaml" exec -T typo3-shippy-apache test -L "$link"
+  assert_success
+
+  # Its target is preserved verbatim.
+  run docker compose -f "${BATS_TEST_DIRNAME}/docker-compose.yaml" exec -T typo3-shippy-apache readlink "$link"
+  assert_output "../../vendor/pkg/style.css"
+
+  # And it resolves to the shipped target file's content.
+  run docker compose -f "${BATS_TEST_DIRNAME}/docker-compose.yaml" exec -T typo3-shippy-apache cat "$link"
+  assert_output --partial "REALCSS"
+
+  rm -f symlink-test.yaml
+}

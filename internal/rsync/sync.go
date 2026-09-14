@@ -20,6 +20,11 @@ type FileInfo struct {
 	Mode     os.FileMode
 	ModTime  time.Time
 	Checksum string
+	// LinkTarget is the verbatim target of a symlink. Empty for regular files.
+	// When set, the entry is recreated as a symlink on the remote rather than
+	// having its content uploaded (Composer/TYPO3 rely on runtime symlinks such
+	// as public/_assets/* -> ../../vendor/...).
+	LinkTarget string
 }
 
 // SyncOptions contains options for file synchronization
@@ -119,9 +124,22 @@ func (s *Scanner) Scan() ([]FileInfo, error) {
 			return nil
 		}
 
-		// Skip symlinks - they should not be transferred
-		// Symlinks in source are usually development artifacts
+		// Symlinks are shipped as symlinks (recreated verbatim on the remote), not
+		// dereferenced. Composer/TYPO3 deployments depend on runtime symlinks, so
+		// dropping them would force running composer on the server.
 		if info.Mode()&os.ModeSymlink != 0 {
+			target, err := os.Readlink(path)
+			if err != nil {
+				return fmt.Errorf("failed to read symlink %s: %w", path, err)
+			}
+			files = append(files, FileInfo{
+				RelPath:    relPath,
+				FullPath:   path,
+				Mode:       info.Mode(),
+				ModTime:    info.ModTime(),
+				Checksum:   symlinkChecksum(target),
+				LinkTarget: target,
+			})
 			return nil
 		}
 
@@ -242,6 +260,15 @@ func isSegmentPrefix(dirParts []string, pattern string) bool {
 		}
 	}
 	return true
+}
+
+// symlinkChecksum derives a stable checksum for a symlink from its target, so a
+// retargeted symlink is detected as changed by the manifest comparison. The
+// "symlink\x00" prefix keeps it from ever colliding with a regular file whose
+// content happens to equal the target string.
+func symlinkChecksum(target string) string {
+	sum := sha256.Sum256([]byte("symlink\x00" + target))
+	return fmt.Sprintf("%x", sum)
 }
 
 // calculateChecksum calculates SHA256 checksum of a file

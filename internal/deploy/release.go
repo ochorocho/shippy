@@ -45,14 +45,16 @@ func NewReleaseManager(client commandRunner, deployPath string) *ReleaseManager 
 //	    ├── .env
 //	    └── var/
 func (r *ReleaseManager) CreateRelease() (string, error) {
-	timestamp := time.Now().Format("20060102150405")
-	releaseName := timestamp
 	releasesDir := filepath.Join(r.deployPath, "releases")
-	releasePath := filepath.Join(releasesDir, releaseName)
 
 	// Create releases directory
 	if err := r.client.MkdirAll(releasesDir); err != nil {
 		return "", fmt.Errorf("failed to create releases directory: %w", err)
+	}
+
+	releasePath, err := r.uniqueReleasePath(releasesDir)
+	if err != nil {
+		return "", err
 	}
 
 	// Create the release directory
@@ -61,6 +63,51 @@ func (r *ReleaseManager) CreateRelease() (string, error) {
 	}
 
 	return releasePath, nil
+}
+
+// maxReleaseSuffix caps the same-second disambiguation search. Reaching it would
+// require thousands of deploys within one second, which never happens in practice.
+const maxReleaseSuffix = 1000
+
+// uniqueReleasePath returns a release directory path that does not yet exist.
+//
+// The release name is a second-granularity timestamp, which collides when two
+// deploys land in the same second (fast/no-op deploys, CI pipelines). Reusing a
+// release directory is unsafe: it is already populated, and the mtime-based
+// cache->release rsync would then skip a changed same-size file and ship stale
+// content. On collision a numeric suffix (".1", ".2", ...) is appended; this
+// preserves the lexical ordering that cleanup and rollback rely on
+// (20240101120000 < 20240101120000.1 < 20240101120001). Deploys hold a per-host
+// lock, so no concurrent deploy can claim the path between the check and mkdir.
+func (r *ReleaseManager) uniqueReleasePath(releasesDir string) (string, error) {
+	base := time.Now().Format("20060102150405")
+	for attempt := 0; attempt <= maxReleaseSuffix; attempt++ {
+		name := base
+		if attempt > 0 {
+			name = fmt.Sprintf("%s.%d", base, attempt)
+		}
+		releasePath := filepath.Join(releasesDir, name)
+
+		exists, err := r.pathExists(releasePath)
+		if err != nil {
+			return "", err
+		}
+		if !exists {
+			return releasePath, nil
+		}
+	}
+	return "", fmt.Errorf("could not find a free release directory under %s after %d attempts", releasesDir, maxReleaseSuffix)
+}
+
+// pathExists reports whether a path exists on the remote server.
+func (r *ReleaseManager) pathExists(path string) (bool, error) {
+	// Emit a sentinel only when the path exists; `|| true` keeps the exit status
+	// zero so RunCommand does not treat a missing path as a command failure.
+	out, err := r.client.RunCommand(fmt.Sprintf("test -e %s && echo exists || true", ssh.Quote(path)))
+	if err != nil {
+		return false, fmt.Errorf("failed to check for existing release directory: %w", err)
+	}
+	return strings.TrimSpace(out) == "exists", nil
 }
 
 // UpdateCurrentSymlink updates the "current" symlink to point to the new release

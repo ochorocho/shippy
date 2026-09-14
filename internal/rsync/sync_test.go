@@ -223,6 +223,59 @@ func assertPaths(t *testing.T, got, want []string) {
 	}
 }
 
+// TestScanSymlinks verifies symlinks are shipped (captured with their verbatim
+// target) rather than dropped or dereferenced, and still obey the allowlist.
+func TestScanSymlinks(t *testing.T) {
+	root := t.TempDir()
+	mustWrite(t, root, "vendor/typo3/cms-core/Resources/Public/style.css", "x")
+	mustWrite(t, root, "secret/real.txt", "s")
+	mustSymlink(t, root, "public/_assets/abc", "../../vendor/typo3/cms-core/Resources/Public")
+	mustSymlink(t, root, "public/secret-link", "../secret/real.txt")
+
+	s, err := NewScanner(SyncOptions{
+		SourceDir:       root,
+		ExcludePatterns: []string{"public/secret-link"},
+		IncludePatterns: []string{"public/", "vendor/"},
+	})
+	if err != nil {
+		t.Fatalf("NewScanner: %v", err)
+	}
+	files, err := s.Scan()
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	byPath := make(map[string]FileInfo, len(files))
+	for _, f := range files {
+		byPath[f.RelPath] = f
+	}
+
+	link, ok := byPath["public/_assets/abc"]
+	if !ok {
+		t.Fatal("expected included symlink public/_assets/abc to be shipped, it was dropped")
+	}
+	if link.LinkTarget != "../../vendor/typo3/cms-core/Resources/Public" {
+		t.Fatalf("symlink target not captured verbatim, got %q", link.LinkTarget)
+	}
+	if link.LinkTarget != "" && link.Checksum == "" {
+		t.Fatal("symlink must carry a checksum so retargeting is detected")
+	}
+	if _, ok := byPath["public/secret-link"]; ok {
+		t.Fatal("excluded symlink public/secret-link must not be shipped")
+	}
+}
+
+func mustSymlink(t *testing.T, root, rel, target string) {
+	t.Helper()
+	full := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.Symlink(target, full); err != nil {
+		t.Fatalf("symlink %s: %v", rel, err)
+	}
+}
+
 func mustWrite(t *testing.T, root, rel, content string) {
 	t.Helper()
 	full := filepath.Join(root, filepath.FromSlash(rel))

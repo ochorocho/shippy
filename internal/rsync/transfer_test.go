@@ -16,14 +16,25 @@ type recordedUpload struct {
 	content string // captured at call time; temp files are gone once Sync returns
 }
 
+type recordedSymlink struct {
+	target string
+	link   string
+}
+
 // fakeClient records remote commands, mkdir calls and uploads. UploadFile does
 // not touch disk, so tests can use fabricated FileInfo entries.
 type fakeClient struct {
 	commands  []string
 	mkdirs    []string
 	uploads   []recordedUpload
+	symlinks  []recordedSymlink
 	respond   func(cmd string) (string, error)
 	uploadErr func(remotePath string) error
+}
+
+func (f *fakeClient) CreateSymlink(target, linkPath string) error {
+	f.symlinks = append(f.symlinks, recordedSymlink{target, linkPath})
+	return nil
 }
 
 func (f *fakeClient) RunCommand(cmd string) (string, error) {
@@ -68,7 +79,7 @@ func TestSyncQuotesRemoteCommands(t *testing.T) {
 	// Remote cache already holds a stale file that no longer exists locally,
 	// so it must be deleted; the local file is new, so it must be uploaded.
 	f := &fakeClient{respond: func(cmd string) (string, error) {
-		if strings.Contains(cmd, "find . -type f") {
+		if strings.Contains(cmd, "find .") {
 			return "./old data.txt\t3\n", nil
 		}
 		return "", nil
@@ -106,7 +117,7 @@ func TestSyncQuotesRemoteCommands(t *testing.T) {
 	}
 
 	// Index scan, manifest read, stale-file deletion, and final copy are all quoted.
-	if !f.saw("cd '/srv/my app/.cache' && find . -type f") {
+	if !f.saw(`cd '/srv/my app/.cache' && find . \( -type f -o -type l \)`) {
 		t.Errorf("expected quoted find index command, commands: %v", f.commands)
 	}
 	if !f.saw("cat '/srv/my app/.shippy/cache-manifest.json'") {
@@ -144,7 +155,7 @@ func TestSyncQuotesRemoteCommands(t *testing.T) {
 // than the cache. Unchanged content must still be skipped.
 func TestSyncSkipsUnchangedFileWithNewerMtime(t *testing.T) {
 	f := &fakeClient{respond: func(cmd string) (string, error) {
-		if strings.Contains(cmd, "find . -type f") {
+		if strings.Contains(cmd, "find .") {
 			return "./app/config.php\t5\n", nil
 		}
 		if strings.Contains(cmd, "cache-manifest.json") {
@@ -175,11 +186,70 @@ func TestSyncSkipsUnchangedFileWithNewerMtime(t *testing.T) {
 	}
 }
 
+// A symlink is recreated on the remote via CreateSymlink (verbatim target),
+// never uploaded as file content, so Composer/TYPO3 runtime symlinks survive.
+func TestSyncRecreatesSymlinks(t *testing.T) {
+	f := &fakeClient{}
+	s := NewSyncer(f, spacedDeploy+"/releases/X", false, spacedDeploy)
+	files := []FileInfo{
+		{
+			RelPath:    "public/_assets/abc",
+			LinkTarget: "../../vendor/typo3/cms-core/Resources/Public",
+			Mode:       os.ModeSymlink | 0o777,
+			Checksum:   "linksum",
+		},
+	}
+
+	if err := s.Sync(files); err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+
+	if len(f.symlinks) != 1 {
+		t.Fatalf("expected 1 symlink recreated, got %d (%v)", len(f.symlinks), f.symlinks)
+	}
+	got := f.symlinks[0]
+	if got.link != spacedDeploy+"/.cache/public/_assets/abc" ||
+		got.target != "../../vendor/typo3/cms-core/Resources/Public" {
+		t.Fatalf("symlink recreated with wrong target/link: %+v", got)
+	}
+	for _, u := range f.uploads {
+		if strings.Contains(u.remote, "public/_assets/abc") {
+			t.Fatalf("a symlink must not be uploaded as file content: %v", u)
+		}
+	}
+}
+
+// An unchanged symlink (present in cache, matching manifest checksum) is skipped
+// rather than recreated on every deploy.
+func TestSyncSkipsUnchangedSymlink(t *testing.T) {
+	f := &fakeClient{respond: func(cmd string) (string, error) {
+		if strings.Contains(cmd, "find .") {
+			return "./public/_assets/abc\t0\n", nil // symlink already present in cache
+		}
+		if strings.Contains(cmd, "cache-manifest.json") {
+			return `{"public/_assets/abc":"linksum"}`, nil
+		}
+		return "", nil
+	}}
+
+	s := NewSyncer(f, spacedDeploy+"/releases/X", false, spacedDeploy)
+	files := []FileInfo{
+		{RelPath: "public/_assets/abc", LinkTarget: "../x", Checksum: "linksum"},
+	}
+
+	if err := s.Sync(files); err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+	if len(f.symlinks) != 0 {
+		t.Fatalf("unchanged symlink must not be recreated, got %v", f.symlinks)
+	}
+}
+
 // Same size with an older local mtime (a composer downgrade restoring archive
 // mtimes) must still upload; the old mtime comparison shipped a stale file.
 func TestSyncUploadsWhenContentChangesButSizeMatches(t *testing.T) {
 	f := &fakeClient{respond: func(cmd string) (string, error) {
-		if strings.Contains(cmd, "find . -type f") {
+		if strings.Contains(cmd, "find .") {
 			return "./app/config.php\t5\n", nil
 		}
 		if strings.Contains(cmd, "cache-manifest.json") {
@@ -322,7 +392,7 @@ func TestSyncUploadsWhenManifestMatchesButCacheFileMissing(t *testing.T) {
 // can be trusted as cached, so everything is re-uploaded.
 func TestSyncUploadsAllWhenManifestMissing(t *testing.T) {
 	f := &fakeClient{respond: func(cmd string) (string, error) {
-		if strings.Contains(cmd, "find . -type f") {
+		if strings.Contains(cmd, "find .") {
 			return "./app/config.php\t5\n", nil
 		}
 		return "", nil
