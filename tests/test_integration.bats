@@ -232,3 +232,57 @@ EOF
 
   rm -f cache-test.yaml
 }
+
+@test "Symlinks are shipped as symlinks (Composer/TYPO3 runtime links)" {
+  set -eu -o pipefail
+
+  # A Composer/TYPO3 deploy relies on relative runtime symlinks like
+  # public/_assets/* -> ../../vendor/.../Resources/Public. They must reach the
+  # server as symlinks (not dereferenced, not dropped), or the site is broken
+  # unless composer runs remotely.
+  cd "$BATS_TEST_DIRNAME/config-test"
+
+  src="${BATS_TMPDIR}/shippy-symlink-src"
+  rm -rf "$src"
+  mkdir -p "$src/app/vendor/pkg" "$src/app/public/_assets"
+  printf 'REALCSS\n' > "$src/app/vendor/pkg/style.css"
+  ln -s ../../vendor/pkg/style.css "$src/app/public/_assets/pkg.css"
+
+  cat > symlink-test.yaml <<EOF
+rsync_src: ${src}
+keep_releases: 2
+include:
+  - app/
+commands:
+  - name: noop
+    run: "true"
+hosts:
+  production:
+    hostname: 127.0.0.1
+    port: 2424
+    remote_user: root
+    deploy_path: /var/www/html
+    ssh_key: ../ssh_keys/shippy_key
+    ssh_options:
+      StrictHostKeyChecking: accept-new
+EOF
+
+  run ${BIN} deploy production --config symlink-test.yaml
+  assert_success
+
+  link=/var/www/html/current/app/public/_assets/pkg.css
+
+  # The deployed path is a symlink, not a regular file (would-be dereference).
+  run docker compose -f "${BATS_TEST_DIRNAME}/docker-compose.yaml" exec -T typo3-shippy-apache test -L "$link"
+  assert_success
+
+  # Its target is preserved verbatim.
+  run docker compose -f "${BATS_TEST_DIRNAME}/docker-compose.yaml" exec -T typo3-shippy-apache readlink "$link"
+  assert_output "../../vendor/pkg/style.css"
+
+  # And it resolves to the shipped target file's content.
+  run docker compose -f "${BATS_TEST_DIRNAME}/docker-compose.yaml" exec -T typo3-shippy-apache cat "$link"
+  assert_output --partial "REALCSS"
+
+  rm -f symlink-test.yaml
+}

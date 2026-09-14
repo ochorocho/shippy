@@ -23,6 +23,7 @@ type remoteClient interface {
 	RunCommand(cmd string) (string, error)
 	MkdirAll(path string) error
 	UploadFile(localPath, remotePath string, mode os.FileMode) error
+	CreateSymlink(target, linkPath string) error
 }
 
 // Syncer handles file synchronization over SSH
@@ -86,10 +87,15 @@ func (s *Syncer) Sync(files []FileInfo) error {
 	for _, file := range files {
 		remoteInfo, exists := remoteFiles[file.RelPath]
 
+		// Symlinks have no meaningful content size (the cache index reports the
+		// target's size), so they are compared by manifest checksum only - the
+		// checksum is derived from the link target, catching a re-pointed link.
+		isSymlink := file.LinkTarget != ""
+
 		needsUpload := !exists ||
-			remoteInfo.Size != file.Size ||
 			file.Checksum == "" ||
-			manifest[file.RelPath] != file.Checksum
+			manifest[file.RelPath] != file.Checksum ||
+			(!isSymlink && remoteInfo.Size != file.Size)
 
 		if needsUpload {
 			filesToUpload = append(filesToUpload, file)
@@ -181,7 +187,9 @@ type RemoteFileInfo struct {
 func (s *Syncer) getRemoteFileIndex(cachePath string) (map[string]RemoteFileInfo, error) {
 	// Use find + stat to get all file info in one command
 	// Output format: path<tab>size
-	cmd := fmt.Sprintf("cd %s && find . -type f -exec stat -c '%%n\t%%s' {} + 2>/dev/null || true", ssh.Quote(cachePath))
+	// Symlinks (-type l) are indexed too so a cached symlink counts as present;
+	// its reported size is irrelevant (symlinks are compared by checksum only).
+	cmd := fmt.Sprintf("cd %s && find . \\( -type f -o -type l \\) -exec stat -c '%%n\t%%s' {} + 2>/dev/null || true", ssh.Quote(cachePath))
 	output, err := s.client.RunCommand(cmd)
 	if err != nil {
 		return nil, err
@@ -287,7 +295,15 @@ func (s *Syncer) uploadWithProgress(filesToUpload []FileInfo, cachePath string, 
 			out.PrintProgressBar(i+1, len(filesToUpload), file.RelPath)
 		}
 
-		if err := s.client.UploadFile(file.FullPath, remoteCachePath, file.Mode); err != nil {
+		// Symlinks are recreated as symlinks; only regular files upload content.
+		if file.LinkTarget != "" {
+			if err := s.client.CreateSymlink(file.LinkTarget, remoteCachePath); err != nil {
+				if !s.verbose {
+					out.ClearLine()
+				}
+				return errors.FileUploadError(file.RelPath, err)
+			}
+		} else if err := s.client.UploadFile(file.FullPath, remoteCachePath, file.Mode); err != nil {
 			if !s.verbose {
 				out.ClearLine()
 			}

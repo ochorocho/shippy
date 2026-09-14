@@ -481,6 +481,23 @@ func (c *Client) UploadFile(localPath, remotePath string, mode os.FileMode) erro
 	return nil
 }
 
+// CreateSymlink recreates a symlink on the remote server, pointing linkPath at
+// target verbatim (the target is stored as-is, not resolved locally). Parent
+// directories are created as needed. -sfn forces replacement and never
+// dereferences an existing symlink-to-directory, so a re-pointed link is
+// replaced rather than created inside the old target.
+func (c *Client) CreateSymlink(target, linkPath string) error {
+	remoteDir := filepath.Dir(linkPath)
+	if _, err := c.RunCommand(fmt.Sprintf("mkdir -p %s", Quote(remoteDir))); err != nil {
+		return fmt.Errorf("failed to create remote directory: %w", err)
+	}
+
+	if _, err := c.RunCommand(fmt.Sprintf("ln -sfn -- %s %s", Quote(target), Quote(linkPath))); err != nil {
+		return fmt.Errorf("failed to create symlink %s: %w", linkPath, err)
+	}
+	return nil
+}
+
 // MkdirAll creates a directory and all parent directories on the remote server
 func (c *Client) MkdirAll(path string) error {
 	_, err := c.RunCommand(fmt.Sprintf("mkdir -p %s", Quote(path)))
