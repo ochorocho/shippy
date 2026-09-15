@@ -115,9 +115,11 @@ Use the prebuilt Docker image, which ships shippy on `PATH`:
 ```yaml
 # .gitlab-ci.yml
 deploy:
-  image: ghcr.io/ochorocho/shippy:latest
-  # ENTRYPOINT is "shippy", so it is cleared to run regular shell commands.
-  entrypoint: [""]
+  stage: deploy
+  image:
+    name: ghcr.io/ochorocho/shippy:latest
+    # ENTRYPOINT is "shippy", so it is cleared to run regular shell commands.
+    entrypoint: [""]
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
   script:
@@ -737,9 +739,10 @@ Run as a scheduled GitLab CI pipeline (uses `CI_JOB_TOKEN` automatically):
 # .gitlab-ci.yml
 nightly_backup:
   stage: backup
-  image: ghcr.io/ochorocho/shippy:latest
-  # ENTRYPOINT is "shippy", so it is cleared to run regular shell commands.
-  entrypoint: [""]
+  image:
+    name: ghcr.io/ochorocho/shippy:latest
+    # ENTRYPOINT is "shippy", so it is cleared to run regular shell commands.
+    entrypoint: [""]
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
   script:
