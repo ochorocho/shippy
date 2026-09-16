@@ -185,11 +185,20 @@ type RemoteFileInfo struct {
 
 // getRemoteFileIndex builds an index of all files in remote cache with their size
 func (s *Syncer) getRemoteFileIndex(cachePath string) (map[string]RemoteFileInfo, error) {
-	// Use find + stat to get all file info in one command
+	// Use find + stat to get all file info in one command.
 	// Output format: path<tab>size
 	// Symlinks (-type l) are indexed too so a cached symlink counts as present;
 	// its reported size is irrelevant (symlinks are compared by checksum only).
-	cmd := fmt.Sprintf("cd %s && find . \\( -type f -o -type l \\) -exec stat -c '%%n\t%%s' {} + 2>/dev/null || true", ssh.Quote(cachePath))
+	//
+	// stat syntax differs by platform: GNU/coreutils (Linux) uses -c '%n\t%s',
+	// BSD (macOS) uses -f '%N\t%z'. Try GNU first per find batch and fall back
+	// to BSD, so the cache works against either target without a probe.
+	cmd := fmt.Sprintf(
+		"cd %s && find . \\( -type f -o -type l \\) -exec sh -c "+
+			"'stat -c \"%%n\t%%s\" \"$@\" 2>/dev/null || stat -f \"%%N\t%%z\" \"$@\"' "+
+			"_ {} + 2>/dev/null || true",
+		ssh.Quote(cachePath),
+	)
 	output, err := s.client.RunCommand(cmd)
 	if err != nil {
 		return nil, err

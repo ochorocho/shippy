@@ -472,6 +472,29 @@ func TestSyncCacheToReleaseFlags(t *testing.T) {
 	}
 }
 
+// The remote index command must work against both GNU (Linux, stat -c) and BSD
+// (macOS, stat -f) targets. A GNU-only command silently returns an empty index
+// on macOS, forcing a full re-upload every deploy.
+func TestGetRemoteFileIndexIsPortable(t *testing.T) {
+	f := &fakeClient{}
+	s := NewSyncer(f, "/release", false, spacedDeploy)
+
+	if _, err := s.getRemoteFileIndex(spacedDeploy + "/.cache"); err != nil {
+		t.Fatalf("getRemoteFileIndex() error = %v", err)
+	}
+
+	if len(f.commands) != 1 {
+		t.Fatalf("expected 1 command, got %d: %v", len(f.commands), f.commands)
+	}
+	cmd := f.commands[0]
+	if !strings.Contains(cmd, "stat -c") {
+		t.Errorf("command missing GNU stat form (stat -c): %s", cmd)
+	}
+	if !strings.Contains(cmd, "stat -f") {
+		t.Errorf("command missing BSD stat form (stat -f): %s", cmd)
+	}
+}
+
 func TestGetRemoteFileIndexParses(t *testing.T) {
 	f := &fakeClient{respond: func(string) (string, error) {
 		return "./a.txt\t10\n./dir/b bin\t20\n", nil
