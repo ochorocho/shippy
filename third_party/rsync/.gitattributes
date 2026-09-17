@@ -1,0 +1,2 @@
+# Golden tests compare golden files (.txt) with \n
+*.txt text eol=lf

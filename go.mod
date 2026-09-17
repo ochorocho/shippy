@@ -71,3 +71,5 @@ require (
 	golang.org/x/text v0.42.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
+
+replace github.com/gokrazy/rsync => ./third_party/rsync
