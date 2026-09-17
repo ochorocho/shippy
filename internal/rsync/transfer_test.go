@@ -1,517 +1,200 @@
 package rsync
 
 import (
-	"encoding/json"
-	"fmt"
+	"io"
+	"io/fs"
 	"os"
-	"strings"
+	"os/exec"
+	"path/filepath"
+	"sort"
 	"testing"
-	"time"
+
+	gokrsync "github.com/gokrazy/rsync"
 )
 
-type recordedUpload struct {
-	local   string
-	remote  string
-	mode    os.FileMode
-	content string // captured at call time; temp files are gone once Sync returns
+// localRemote implements remoteClient by running commands and the rsync receiver
+// on the LOCAL machine with the real rsync binary, into real temp directories.
+// This exercises the whole Sync path (gokr-rsync client-sender -> real rsync
+// receiver, then the real-rsync promote) exactly as in production, minus SSH.
+type localRemote struct {
+	commands []string
 }
 
-type recordedSymlink struct {
-	target string
-	link   string
+func (r *localRemote) RunCommand(cmd string) (string, error) {
+	r.commands = append(r.commands, cmd)
+	out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
+	return string(out), err
 }
 
-// fakeClient records remote commands, mkdir calls and uploads. UploadFile does
-// not touch disk, so tests can use fabricated FileInfo entries.
-type fakeClient struct {
-	commands  []string
-	mkdirs    []string
-	uploads   []recordedUpload
-	symlinks  []recordedSymlink
-	respond   func(cmd string) (string, error)
-	uploadErr func(remotePath string) error
-}
+func (r *localRemote) MkdirAll(path string) error { return os.MkdirAll(path, 0o755) }
 
-func (f *fakeClient) CreateSymlink(target, linkPath string) error {
-	f.symlinks = append(f.symlinks, recordedSymlink{target, linkPath})
-	return nil
-}
-
-func (f *fakeClient) RunCommand(cmd string) (string, error) {
-	f.commands = append(f.commands, cmd)
-	if f.respond != nil {
-		return f.respond(cmd)
+func (r *localRemote) RsyncSender(remoteCmd string, run func(io.ReadWriteCloser) error) error {
+	cmd := exec.Command("sh", "-c", remoteCmd)
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return err
 	}
-	return "", nil
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	runErr := run(&gokrsync.BothCloser{ReadCloser: io.NopCloser(stdout), WriteCloser: stdin})
+	if waitErr := cmd.Wait(); waitErr != nil && runErr == nil {
+		return waitErr
+	}
+	return runErr
 }
 
-func (f *fakeClient) MkdirAll(path string) error {
-	f.mkdirs = append(f.mkdirs, path)
-	return nil
-}
-
-func (f *fakeClient) UploadFile(localPath, remotePath string, mode os.FileMode) error {
-	if f.uploadErr != nil {
-		if err := f.uploadErr(remotePath); err != nil {
+// releaseSet lists files and symlinks (not directories) under root, as relative
+// slash paths.
+func releaseSet(t *testing.T, root string) []string {
+	t.Helper()
+	var got []string
+	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
 			return err
 		}
-	}
-	content := ""
-	if data, err := os.ReadFile(localPath); err == nil {
-		content = string(data)
-	}
-	f.uploads = append(f.uploads, recordedUpload{localPath, remotePath, mode, content})
-	return nil
-}
-
-func (f *fakeClient) saw(substr string) bool {
-	for _, c := range f.commands {
-		if strings.Contains(c, substr) {
-			return true
+		if d.IsDir() {
+			return nil
 		}
-	}
-	return false
-}
-
-const spacedDeploy = "/srv/my app"
-
-func TestSyncQuotesRemoteCommands(t *testing.T) {
-	// Remote cache already holds a stale file that no longer exists locally,
-	// so it must be deleted; the local file is new, so it must be uploaded.
-	f := &fakeClient{respond: func(cmd string) (string, error) {
-		if strings.Contains(cmd, "find .") {
-			return "./old data.txt\t3\n", nil
-		}
-		return "", nil
-	}}
-
-	releasePath := spacedDeploy + "/releases/20240105120000"
-	s := NewSyncer(f, releasePath, false, spacedDeploy)
-
-	files := []FileInfo{
-		{
-			RelPath:  "app/config.php",
-			FullPath: "/local/app/config.php",
-			Size:     5,
-			Mode:     0o644,
-			ModTime:  time.Unix(1000, 0),
-			Checksum: "sum-config",
-		},
-	}
-
-	if err := s.Sync(files); err != nil {
-		t.Fatalf("Sync() error = %v", err)
-	}
-
-	cache := spacedDeploy + "/.cache"
-
-	// Cache directory is created.
-	found := false
-	for _, d := range f.mkdirs {
-		if d == cache {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("expected cache dir %q created, mkdirs: %v", cache, f.mkdirs)
-	}
-
-	// Index scan, manifest read, stale-file deletion, and final copy are all quoted.
-	if !f.saw(`cd '/srv/my app/.cache' && find . \( -type f -o -type l \)`) {
-		t.Errorf("expected quoted find index command, commands: %v", f.commands)
-	}
-	if !f.saw("cat '/srv/my app/.shippy/cache-manifest.json'") {
-		t.Errorf("expected quoted manifest read command, commands: %v", f.commands)
-	}
-	if !f.saw("rm -f '/srv/my app/.cache/old data.txt'") {
-		t.Errorf("expected quoted deletion of stale cache file, commands: %v", f.commands)
-	}
-	if !f.saw("rsync -rlt --no-perms --delete '/srv/my app/.cache'/ '/srv/my app/releases/20240105120000'/") {
-		t.Errorf("expected quoted rsync copy, commands: %v", f.commands)
-	}
-
-	// The new local file is uploaded to its path under the cache, and the
-	// refreshed manifest is uploaded next to it.
-	wantRemote := cache + "/app/config.php"
-	fileUploaded := false
-	manifestUploaded := false
-	for _, u := range f.uploads {
-		if u.remote == wantRemote && u.local == "/local/app/config.php" {
-			fileUploaded = true
-		}
-		if u.remote == spacedDeploy+"/.shippy/cache-manifest.json" {
-			manifestUploaded = true
-		}
-	}
-	if !fileUploaded {
-		t.Errorf("expected upload of %q, uploads: %v", wantRemote, f.uploads)
-	}
-	if !manifestUploaded {
-		t.Errorf("expected manifest upload, uploads: %v", f.uploads)
-	}
-}
-
-// A fresh CI checkout restamps every file, so local mtimes are always newer
-// than the cache. Unchanged content must still be skipped.
-func TestSyncSkipsUnchangedFileWithNewerMtime(t *testing.T) {
-	f := &fakeClient{respond: func(cmd string) (string, error) {
-		if strings.Contains(cmd, "find .") {
-			return "./app/config.php\t5\n", nil
-		}
-		if strings.Contains(cmd, "cache-manifest.json") {
-			return `{"app/config.php":"abc123"}`, nil
-		}
-		return "", nil
-	}}
-
-	s := NewSyncer(f, spacedDeploy+"/releases/X", false, spacedDeploy)
-	files := []FileInfo{
-		{
-			RelPath:  "app/config.php",
-			FullPath: "/local/app/config.php",
-			Size:     5,
-			Mode:     0o644,
-			ModTime:  time.Unix(2000, 0), // newer than remote mtime 1000 (fresh checkout)
-			Checksum: "abc123",
-		},
-	}
-
-	if err := s.Sync(files); err != nil {
-		t.Fatalf("Sync() error = %v", err)
-	}
-	for _, u := range f.uploads {
-		if u.remote == spacedDeploy+"/.cache/app/config.php" {
-			t.Errorf("unchanged file was re-uploaded despite matching checksum: %v", f.uploads)
-		}
-	}
-}
-
-// A symlink is recreated on the remote via CreateSymlink (verbatim target),
-// never uploaded as file content, so Composer/TYPO3 runtime symlinks survive.
-func TestSyncRecreatesSymlinks(t *testing.T) {
-	f := &fakeClient{}
-	s := NewSyncer(f, spacedDeploy+"/releases/X", false, spacedDeploy)
-	files := []FileInfo{
-		{
-			RelPath:    "public/_assets/abc",
-			LinkTarget: "../../vendor/typo3/cms-core/Resources/Public",
-			Mode:       os.ModeSymlink | 0o777,
-			Checksum:   "linksum",
-		},
-	}
-
-	if err := s.Sync(files); err != nil {
-		t.Fatalf("Sync() error = %v", err)
-	}
-
-	if len(f.symlinks) != 1 {
-		t.Fatalf("expected 1 symlink recreated, got %d (%v)", len(f.symlinks), f.symlinks)
-	}
-	got := f.symlinks[0]
-	if got.link != spacedDeploy+"/.cache/public/_assets/abc" ||
-		got.target != "../../vendor/typo3/cms-core/Resources/Public" {
-		t.Fatalf("symlink recreated with wrong target/link: %+v", got)
-	}
-	for _, u := range f.uploads {
-		if strings.Contains(u.remote, "public/_assets/abc") {
-			t.Fatalf("a symlink must not be uploaded as file content: %v", u)
-		}
-	}
-}
-
-// An unchanged symlink (present in cache, matching manifest checksum) is skipped
-// rather than recreated on every deploy.
-func TestSyncSkipsUnchangedSymlink(t *testing.T) {
-	f := &fakeClient{respond: func(cmd string) (string, error) {
-		if strings.Contains(cmd, "find .") {
-			return "./public/_assets/abc\t0\n", nil // symlink already present in cache
-		}
-		if strings.Contains(cmd, "cache-manifest.json") {
-			return `{"public/_assets/abc":"linksum"}`, nil
-		}
-		return "", nil
-	}}
-
-	s := NewSyncer(f, spacedDeploy+"/releases/X", false, spacedDeploy)
-	files := []FileInfo{
-		{RelPath: "public/_assets/abc", LinkTarget: "../x", Checksum: "linksum"},
-	}
-
-	if err := s.Sync(files); err != nil {
-		t.Fatalf("Sync() error = %v", err)
-	}
-	if len(f.symlinks) != 0 {
-		t.Fatalf("unchanged symlink must not be recreated, got %v", f.symlinks)
-	}
-}
-
-// Same size with an older local mtime (a composer downgrade restoring archive
-// mtimes) must still upload; the old mtime comparison shipped a stale file.
-func TestSyncUploadsWhenContentChangesButSizeMatches(t *testing.T) {
-	f := &fakeClient{respond: func(cmd string) (string, error) {
-		if strings.Contains(cmd, "find .") {
-			return "./app/config.php\t5\n", nil
-		}
-		if strings.Contains(cmd, "cache-manifest.json") {
-			return `{"app/config.php":"oldsum"}`, nil
-		}
-		return "", nil
-	}}
-
-	s := NewSyncer(f, spacedDeploy+"/releases/X", false, spacedDeploy)
-	files := []FileInfo{
-		{
-			RelPath:  "app/config.php",
-			FullPath: "/local/app/config.php",
-			Size:     5,
-			Mode:     0o644,
-			ModTime:  time.Unix(1000, 0), // older than remote mtime 2000
-			Checksum: "newsum",
-		},
-	}
-
-	if err := s.Sync(files); err != nil {
-		t.Fatalf("Sync() error = %v", err)
-	}
-	uploaded := false
-	for _, u := range f.uploads {
-		if u.remote == spacedDeploy+"/.cache/app/config.php" {
-			uploaded = true
-		}
-	}
-	if !uploaded {
-		t.Errorf("expected changed file to be uploaded, uploads: %v", f.uploads)
-	}
-}
-
-// The manifest drives the next deploy's skip decisions, so it must map every
-// synced file to its local checksum.
-func TestSyncWritesManifestWithLocalChecksums(t *testing.T) {
-	f := &fakeClient{}
-
-	s := NewSyncer(f, spacedDeploy+"/releases/X", false, spacedDeploy)
-	files := []FileInfo{
-		{RelPath: "a.php", FullPath: "/local/a.php", Size: 1, Mode: 0o644, ModTime: time.Unix(1000, 0), Checksum: "sum-a"},
-		{RelPath: "dir/b.php", FullPath: "/local/dir/b.php", Size: 2, Mode: 0o644, ModTime: time.Unix(1000, 0), Checksum: "sum-b"},
-	}
-
-	if err := s.Sync(files); err != nil {
-		t.Fatalf("Sync() error = %v", err)
-	}
-
-	var manifestJSON string
-	for _, u := range f.uploads {
-		if u.remote == spacedDeploy+"/.shippy/cache-manifest.json" {
-			manifestJSON = u.content
-		}
-	}
-	if manifestJSON == "" {
-		t.Fatalf("no manifest upload recorded, uploads: %v", f.uploads)
-	}
-
-	manifest := map[string]string{}
-	if err := json.Unmarshal([]byte(manifestJSON), &manifest); err != nil {
-		t.Fatalf("manifest is not valid JSON: %v (content: %s)", err, manifestJSON)
-	}
-	want := map[string]string{"a.php": "sum-a", "dir/b.php": "sum-b"}
-	if len(manifest) != len(want) {
-		t.Errorf("manifest has %d entries, want %d: %v", len(manifest), len(want), manifest)
-	}
-	for relPath, checksum := range want {
-		if manifest[relPath] != checksum {
-			t.Errorf("manifest[%q] = %q, want %q", relPath, manifest[relPath], checksum)
-		}
-	}
-}
-
-// The manifest must only be written once every upload succeeded, otherwise it
-// vouches for files that never reached the cache and they are skipped forever.
-func TestSyncDoesNotWriteManifestWhenUploadFails(t *testing.T) {
-	f := &fakeClient{uploadErr: func(remotePath string) error {
-		if strings.HasSuffix(remotePath, "b.php") {
-			return fmt.Errorf("disk full")
-		}
+		rel, _ := filepath.Rel(root, p)
+		got = append(got, filepath.ToSlash(rel))
 		return nil
-	}}
-
-	s := NewSyncer(f, spacedDeploy+"/releases/X", false, spacedDeploy)
-	files := []FileInfo{
-		{RelPath: "a.php", FullPath: "/local/a.php", Size: 1, Mode: 0o644, ModTime: time.Unix(1000, 0), Checksum: "sum-a"},
-		{RelPath: "b.php", FullPath: "/local/b.php", Size: 2, Mode: 0o644, ModTime: time.Unix(1000, 0), Checksum: "sum-b"},
-	}
-
-	if err := s.Sync(files); err == nil {
-		t.Fatal("Sync() returned nil, want error when an upload fails")
-	}
-	for _, u := range f.uploads {
-		if u.remote == spacedDeploy+"/.shippy/cache-manifest.json" {
-			t.Errorf("manifest written despite failed upload, uploads: %v", f.uploads)
-		}
-	}
-}
-
-// A file the manifest vouches for but that is gone from the cache must be
-// re-uploaded; the release is populated solely by rsync from the cache. Uses an
-// empty file, whose size matches the zero value a cache miss yields, so only
-// the presence check can catch it.
-func TestSyncUploadsWhenManifestMatchesButCacheFileMissing(t *testing.T) {
-	f := &fakeClient{respond: func(cmd string) (string, error) {
-		if strings.Contains(cmd, "cache-manifest.json") {
-			return `{".gitkeep":"abc123"}`, nil
-		}
-		return "", nil
-	}}
-
-	s := NewSyncer(f, spacedDeploy+"/releases/X", false, spacedDeploy)
-	files := []FileInfo{
-		{
-			RelPath:  ".gitkeep",
-			FullPath: "/local/.gitkeep",
-			Size:     0,
-			Mode:     0o644,
-			ModTime:  time.Unix(1000, 0),
-			Checksum: "abc123",
-		},
-	}
-
-	if err := s.Sync(files); err != nil {
-		t.Fatalf("Sync() error = %v", err)
-	}
-	uploaded := false
-	for _, u := range f.uploads {
-		if u.remote == spacedDeploy+"/.cache/.gitkeep" {
-			uploaded = true
-		}
-	}
-	if !uploaded {
-		t.Errorf("expected re-upload of file missing from cache, uploads: %v", f.uploads)
-	}
-}
-
-// Without a manifest (first deploy after upgrade, or a corrupt file) nothing
-// can be trusted as cached, so everything is re-uploaded.
-func TestSyncUploadsAllWhenManifestMissing(t *testing.T) {
-	f := &fakeClient{respond: func(cmd string) (string, error) {
-		if strings.Contains(cmd, "find .") {
-			return "./app/config.php\t5\n", nil
-		}
-		return "", nil
-	}}
-
-	s := NewSyncer(f, spacedDeploy+"/releases/X", false, spacedDeploy)
-	files := []FileInfo{
-		{
-			RelPath:  "app/config.php",
-			FullPath: "/local/app/config.php",
-			Size:     5,
-			Mode:     0o644,
-			ModTime:  time.Unix(500, 0),
-			Checksum: "abc123",
-		},
-	}
-
-	if err := s.Sync(files); err != nil {
-		t.Fatalf("Sync() error = %v", err)
-	}
-	uploaded := false
-	for _, u := range f.uploads {
-		if u.remote == spacedDeploy+"/.cache/app/config.php" {
-			uploaded = true
-		}
-	}
-	if !uploaded {
-		t.Errorf("expected upload when manifest is missing, uploads: %v", f.uploads)
-	}
-}
-
-// TestSyncCacheToReleaseFlags verifies that the remote rsync command used to
-// promote the cache into the release directory never sets file permissions from
-// the source tree. Server permissions are owned by the server (default ACLs,
-// umask) not by the deploying machine; mirroring source permissions via -a or
-// --perms would silently override those ACLs and break group-write access for
-// the web server process.
-func TestSyncCacheToReleaseFlags(t *testing.T) {
-	var rsyncCmd string
-	f := &fakeClient{respond: func(cmd string) (string, error) {
-		if strings.Contains(cmd, "rsync") {
-			rsyncCmd = cmd
-		}
-		return "", nil
-	}}
-
-	s := NewSyncer(f, spacedDeploy+"/releases/20240105120000", false, spacedDeploy)
-	files := []FileInfo{
-		{RelPath: "index.php", FullPath: "/local/index.php", Size: 1, Mode: 0o644, ModTime: time.Unix(1000, 0), Checksum: "sum-index"},
-	}
-	if err := s.Sync(files); err != nil {
-		t.Fatalf("Sync() error = %v", err)
-	}
-
-	if rsyncCmd == "" {
-		t.Fatal("no rsync command was issued")
-	}
-
-	// --no-perms must be present so chmod() is never called on transferred files.
-	if !strings.Contains(rsyncCmd, "--no-perms") {
-		t.Errorf("rsync command must contain --no-perms to let server ACLs govern permissions, got: %s", rsyncCmd)
-	}
-
-	// -a (archive) implies -p/--perms which calls chmod() and overrides default
-	// ACLs. Neither form must appear in the command.
-	for _, forbidden := range []string{"-a ", "-a\t", " -a\n", "--archive", "--perms", " -p "} {
-		if strings.Contains(rsyncCmd, forbidden) {
-			t.Errorf("rsync command must not contain %q (would mirror source permissions and override server ACLs), got: %s", forbidden, rsyncCmd)
-		}
-	}
-
-	// Recursive, links, and timestamps must be preserved.
-	for _, required := range []string{"-rlt", "--delete"} {
-		if !strings.Contains(rsyncCmd, required) {
-			t.Errorf("rsync command must contain %q, got: %s", required, rsyncCmd)
-		}
-	}
-}
-
-// The remote index command must work against both GNU (Linux, stat -c) and BSD
-// (macOS, stat -f) targets. A GNU-only command silently returns an empty index
-// on macOS, forcing a full re-upload every deploy.
-func TestGetRemoteFileIndexIsPortable(t *testing.T) {
-	f := &fakeClient{}
-	s := NewSyncer(f, "/release", false, spacedDeploy)
-
-	if _, err := s.getRemoteFileIndex(spacedDeploy + "/.cache"); err != nil {
-		t.Fatalf("getRemoteFileIndex() error = %v", err)
-	}
-
-	if len(f.commands) != 1 {
-		t.Fatalf("expected 1 command, got %d: %v", len(f.commands), f.commands)
-	}
-	cmd := f.commands[0]
-	if !strings.Contains(cmd, "stat -c") {
-		t.Errorf("command missing GNU stat form (stat -c): %s", cmd)
-	}
-	if !strings.Contains(cmd, "stat -f") {
-		t.Errorf("command missing BSD stat form (stat -f): %s", cmd)
-	}
-}
-
-func TestGetRemoteFileIndexParses(t *testing.T) {
-	f := &fakeClient{respond: func(string) (string, error) {
-		return "./a.txt\t10\n./dir/b bin\t20\n", nil
-	}}
-	s := NewSyncer(f, "/release", false, spacedDeploy)
-
-	idx, err := s.getRemoteFileIndex(spacedDeploy + "/.cache")
+	})
 	if err != nil {
-		t.Fatalf("getRemoteFileIndex() error = %v", err)
+		t.Fatalf("walk release: %v", err)
 	}
-	if len(idx) != 2 {
-		t.Fatalf("got %d entries, want 2: %v", len(idx), idx)
+	sort.Strings(got)
+	return got
+}
+
+func scanFixture(t *testing.T, src string) ([]FileInfo, []string) {
+	t.Helper()
+	scanner, err := NewScanner(SyncOptions{
+		SourceDir:       src,
+		IncludePatterns: []string{"**"},
+		ExcludePatterns: []string{"node_modules/"},
+	})
+	if err != nil {
+		t.Fatalf("NewScanner: %v", err)
 	}
-	if idx["a.txt"].Size != 10 {
-		t.Errorf("a.txt = %+v", idx["a.txt"])
+	files, err := scanner.Scan()
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
 	}
-	if idx["dir/b bin"].Size != 20 {
-		t.Errorf("dir/b bin = %+v", idx["dir/b bin"])
+	var rel []string
+	for _, f := range files {
+		rel = append(rel, f.RelPath)
 	}
+	sort.Strings(rel)
+	return files, rel
+}
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestSyncTransfersScannedSet is the oracle test: whatever the go-git scanner
+// includes must land in the release directory exactly, and nothing else.
+func TestSyncTransfersScannedSet(t *testing.T) {
+	if _, err := exec.LookPath("rsync"); err != nil {
+		t.Skip("rsync not installed")
+	}
+
+	src := t.TempDir()
+	deploy := t.TempDir()
+	release := filepath.Join(deploy, "releases", "20240105120000")
+
+	writeFile(t, filepath.Join(src, "app/config.php"), "config")
+	writeFile(t, filepath.Join(src, "dir/b bin"), "bb") // spaced name
+	writeFile(t, filepath.Join(src, "index.php"), "index")
+	writeFile(t, filepath.Join(src, "node_modules/huge.js"), "junk") // excluded
+	if err := os.Symlink("../index.php", filepath.Join(src, "app/link.php")); err != nil {
+		t.Fatal(err)
+	}
+
+	files, want := scanFixture(t, src)
+	// Sanity: the excluded dir is not in the scanned set.
+	for _, p := range want {
+		if p == "node_modules/huge.js" {
+			t.Fatalf("scanner included an excluded file: %v", want)
+		}
+	}
+
+	s := NewSyncer(&localRemote{}, release, false, deploy, src)
+	if err := s.Sync(files); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	got := releaseSet(t, release)
+	if !equalStrings(got, want) {
+		t.Errorf("release set != scanned set\n got: %v\nwant: %v", got, want)
+	}
+
+	// The symlink must be a symlink in the release, not a dereferenced copy.
+	if fi, err := os.Lstat(filepath.Join(release, "app/link.php")); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("app/link.php not a symlink in release: mode=%v err=%v", fi.Mode(), err)
+	}
+}
+
+// TestSyncPrunesRemovedFiles verifies the promote's --files-from + --delete
+// removes a file that is no longer in the scanned set on a subsequent deploy.
+func TestSyncPrunesRemovedFiles(t *testing.T) {
+	if _, err := exec.LookPath("rsync"); err != nil {
+		t.Skip("rsync not installed")
+	}
+
+	src := t.TempDir()
+	deploy := t.TempDir()
+	release := filepath.Join(deploy, "current")
+
+	writeFile(t, filepath.Join(src, "keep.php"), "keep")
+	writeFile(t, filepath.Join(src, "dir/gone.php"), "gone")
+
+	files, _ := scanFixture(t, src)
+	s := NewSyncer(&localRemote{}, release, false, deploy, src)
+	if err := s.Sync(files); err != nil {
+		t.Fatalf("first Sync: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(release, "dir/gone.php")); err != nil {
+		t.Fatalf("dir/gone.php should exist after first sync: %v", err)
+	}
+
+	// Remove the file from the source and re-deploy.
+	if err := os.Remove(filepath.Join(src, "dir/gone.php")); err != nil {
+		t.Fatal(err)
+	}
+	files, _ = scanFixture(t, src)
+	if err := s.Sync(files); err != nil {
+		t.Fatalf("second Sync: %v", err)
+	}
+
+	if _, err := os.Lstat(filepath.Join(release, "dir/gone.php")); !os.IsNotExist(err) {
+		t.Errorf("dir/gone.php was not pruned from release (err=%v)", err)
+	}
+	if _, err := os.Lstat(filepath.Join(release, "keep.php")); err != nil {
+		t.Errorf("keep.php should still exist: %v", err)
+	}
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

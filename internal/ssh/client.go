@@ -1,6 +1,7 @@
 package ssh
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	gokrsync "github.com/gokrazy/rsync"
 	sshagent "github.com/xanzy/ssh-agent"
 	"golang.org/x/crypto/ssh"
 
@@ -400,6 +402,44 @@ func (c *Client) RunCommandWithOutput(cmd string, stdout, stderr io.Writer) erro
 	}
 
 	return nil
+}
+
+// RsyncSender starts remoteCmd (a remote `rsync --server ...` receiver) over the
+// SSH connection and hands run an io.ReadWriteCloser wired to the command's
+// stdin+stdout, so a local rsync client can speak the rsync protocol to the real
+// remote rsync. Stderr from the remote rsync is captured and surfaced on failure.
+func (c *Client) RsyncSender(remoteCmd string, run func(io.ReadWriteCloser) error) error {
+	session, err := c.client.NewSession()
+	if err != nil {
+		return shippyerrors.SSHError("creating rsync SSH session", err)
+	}
+	defer session.Close()
+
+	stdin, err := session.StdinPipe()
+	if err != nil {
+		return shippyerrors.SSHError("opening rsync stdin", err)
+	}
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		return shippyerrors.SSHError("opening rsync stdout", err)
+	}
+	var stderr bytes.Buffer
+	session.Stderr = &stderr
+
+	if err := session.Start(remoteCmd); err != nil {
+		return shippyerrors.CommandError(remoteCmd, strings.TrimSpace(stderr.String()), err)
+	}
+
+	// The client reads the server's stdout and writes to its stdin.
+	runErr := run(&gokrsync.BothCloser{
+		ReadCloser:  io.NopCloser(stdout),
+		WriteCloser: stdin,
+	})
+
+	if waitErr := session.Wait(); waitErr != nil && runErr == nil {
+		return shippyerrors.CommandError(remoteCmd, strings.TrimSpace(stderr.String()), waitErr)
+	}
+	return runErr
 }
 
 // UploadFile uploads a file to the remote server

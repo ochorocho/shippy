@@ -11,11 +11,22 @@ require (
 	github.com/fatih/color v1.19.0
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/go-sql-driver/mysql v1.10.0
+	github.com/gokrazy/rsync v0.0.0-00010101000000-000000000000
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/kevinburke/ssh_config v1.6.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.57.0
 	gopkg.in/yaml.v3 v3.0.1
+)
+
+require (
+	github.com/BurntSushi/toml v1.6.0 // indirect
+	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf // indirect
+	github.com/google/renameio/v2 v2.0.2 // indirect
+	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
+	github.com/landlock-lsm/go-landlock v0.0.0-20250303204525-1544bccde3a3 // indirect
+	github.com/mmcloughlin/md4 v0.1.2 // indirect
+	kernel.org/pub/linux/libs/security/libcap/psx v1.2.70 // indirect
 )
 
 require (
