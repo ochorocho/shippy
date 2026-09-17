@@ -436,10 +436,17 @@ func (c *Client) RsyncSender(remoteCmd string, run func(io.ReadWriteCloser) erro
 		WriteCloser: stdin,
 	})
 
-	if waitErr := session.Wait(); waitErr != nil && runErr == nil {
+	waitErr := session.Wait()
+	if runErr != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return fmt.Errorf("%w (remote rsync: %s)", runErr, msg)
+		}
+		return runErr
+	}
+	if waitErr != nil {
 		return shippyerrors.CommandError(remoteCmd, strings.TrimSpace(stderr.String()), waitErr)
 	}
-	return runErr
+	return nil
 }
 
 // UploadFile uploads a file to the remote server
@@ -518,23 +525,6 @@ func (c *Client) UploadFile(localPath, remotePath string, mode os.FileMode) erro
 		return err
 	}
 
-	return nil
-}
-
-// CreateSymlink recreates a symlink on the remote server, pointing linkPath at
-// target verbatim (the target is stored as-is, not resolved locally). Parent
-// directories are created as needed. -sfn forces replacement and never
-// dereferences an existing symlink-to-directory, so a re-pointed link is
-// replaced rather than created inside the old target.
-func (c *Client) CreateSymlink(target, linkPath string) error {
-	remoteDir := filepath.Dir(linkPath)
-	if _, err := c.RunCommand(fmt.Sprintf("mkdir -p %s", Quote(remoteDir))); err != nil {
-		return fmt.Errorf("failed to create remote directory: %w", err)
-	}
-
-	if _, err := c.RunCommand(fmt.Sprintf("ln -sfn -- %s %s", Quote(target), Quote(linkPath))); err != nil {
-		return fmt.Errorf("failed to create symlink %s: %w", linkPath, err)
-	}
 	return nil
 }
 

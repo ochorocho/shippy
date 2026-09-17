@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	gokrsync "github.com/gokrazy/rsync"
@@ -118,6 +119,9 @@ func TestSyncTransfersScannedSet(t *testing.T) {
 	writeFile(t, filepath.Join(src, "app/config.php"), "config")
 	writeFile(t, filepath.Join(src, "dir/b bin"), "bb") // spaced name
 	writeFile(t, filepath.Join(src, "index.php"), "index")
+	// A file larger than one rsync token chunk (>32 KiB), so the multi-chunk
+	// literal-send path in sendFile is exercised.
+	writeFile(t, filepath.Join(src, "big.bin"), strings.Repeat("x", 200*1024))
 	writeFile(t, filepath.Join(src, "node_modules/huge.js"), "junk") // excluded
 	if err := os.Symlink("../index.php", filepath.Join(src, "app/link.php")); err != nil {
 		t.Fatal(err)

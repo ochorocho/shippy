@@ -155,9 +155,13 @@ func (st *Transfer) receiveSums() (rsync.SumHead, error) {
 }
 
 func (st *Transfer) sendFile(fileIndex int32, fl file) error {
-	// rsync/rsync.h defines chunkSize as 32 * 1024, but increasing it to 256K
-	// increases throughput with “tridge” rsync as client by 50 Mbit/s.
-	const chunkSize = 256 * 1024
+	// SHIPPY PATCH: chunkSize must not exceed rsync's CHUNK_SIZE (32*1024). Each
+	// read chunk is written as one uncompressed literal token, and a tridge
+	// rsync *receiver* rejects any token larger than CHUNK_SIZE with "invalid
+	// uncompressed token length". Upstream used 256K here for throughput, which
+	// only works against lenient receivers (openrsync); it breaks pushing to a
+	// real rsync server, i.e. shippy's core case. See SHIPPY_PATCHES.md.
+	const chunkSize = 32 * 1024
 
 	f, err := fl.source.Open(fl.path)
 	if err != nil {

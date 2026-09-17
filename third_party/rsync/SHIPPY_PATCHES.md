@@ -34,6 +34,21 @@ Validated by `rsyncclient/shippy_filesfrom_test.go` against a real rsync
 receiver: exact-list transfer, nested + spaced names, symlink preserved, unlisted
 files excluded.
 
+## Patch: cap literal token size at CHUNK_SIZE (32 KiB)
+
+`internal/sender/sender.go` `sendFile()` read and wrote whole-file literal data
+in 256 KiB chunks, each emitted as one uncompressed rsync token. rsync's
+protocol caps an uncompressed token at `CHUNK_SIZE` (32 KiB); a *tridge* rsync
+receiver (Linux, the common deploy target) rejects anything larger with
+`invalid uncompressed token length 262144 [receiver]` and drops the connection.
+openrsync (macOS) does not enforce the limit, which is why it only surfaced
+against tridge. Upstream chose 256 KiB purely for throughput. Fixed to
+`32 * 1024`.
+
+Without this, pushing any non-trivial file (>32 KiB) to a real rsync server
+fails. Covered by the large-file case in shippy's `internal/rsync` tests and the
+BATS integration deploy.
+
 ## Deliberately NOT patched: `--delete` forwarding
 
 `internal/rsyncopts/serveroptions.go` leaves the `--delete` forwarding commented
