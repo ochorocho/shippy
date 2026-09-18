@@ -65,6 +65,14 @@ func (s *Syncer) Sync(files []FileInfo) error {
 		return fmt.Errorf("failed to create remote cache directory: %w", err)
 	}
 
+	// Ensure the release directory (and its parents) exists before the promote.
+	// The deployer normally creates it first, but a tridge rsync receiver only
+	// creates the final path component, not intermediate parents, so the mirror
+	// below would fail without this. Idempotent when the dir already exists.
+	if err := s.client.MkdirAll(s.remotePath); err != nil {
+		return fmt.Errorf("failed to create remote release directory: %w", err)
+	}
+
 	// Write the NUL-separated transfer list once, reused for the push and the
 	// promote.
 	listFile, err := writeFilesList(files)
