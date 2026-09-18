@@ -1,6 +1,7 @@
 package rsync
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -82,7 +83,7 @@ func (s *Syncer) Sync(files []FileInfo) error {
 	defer os.Remove(listFile)
 
 	// 1. Push the listed files into the cache over the SSH connection.
-	if err := s.pushToCache(cachePath, listFile, out); err != nil {
+	if err := s.pushToCache(cachePath, listFile, len(files), out); err != nil {
 		return err
 	}
 
@@ -154,11 +155,15 @@ func (s *Syncer) pruneCache(cachePath string, files []FileInfo) error {
 
 // pushToCache runs the rsync client-sender against the remote rsync receiver,
 // transferring exactly the files in listFile into cachePath.
-func (s *Syncer) pushToCache(cachePath, listFile string, out *ui.Output) error {
+func (s *Syncer) pushToCache(cachePath, listFile string, totalFiles int, out *ui.Output) error {
+	// --info=name1 makes the client emit each transferred file's path on stdout
+	// (see the vendored SHIPPY PATCH), which drives the progress UI. It does not
+	// set --verbose, so it is not forwarded to the remote rsync server.
+	progress := &progressWriter{out: out, verbose: s.verbose, total: totalFiles}
 	client, err := rsyncclient.New([]string{
-		"-rlt", "--no-perms",
+		"-rlt", "--no-perms", "--info=name1",
 		"--files-from=" + listFile, "--from0",
-	}, rsyncclient.WithSender())
+	}, rsyncclient.WithSender(), rsyncclient.WithStdout(progress))
 	if err != nil {
 		return fmt.Errorf("failed to build rsync client: %w", err)
 	}
@@ -181,17 +186,57 @@ func (s *Syncer) pushToCache(cachePath, listFile string, out *ui.Output) error {
 		result = r
 		return runErr
 	})
+	if !s.verbose && progress.count > 0 {
+		out.ClearLine()
+	}
 	if err != nil {
 		return fmt.Errorf("rsync transfer failed: %w", err)
 	}
 
 	if result != nil && result.Stats != nil {
-		out.Success("Transferred %.2f MB (%.2f MB over the wire)",
+		out.Success("Uploaded %d files, %.2f MB (%.2f MB over the wire)",
+			progress.count,
 			float64(result.Stats.Size)/(1024*1024),
 			float64(result.Stats.Written)/(1024*1024))
 	}
 	return nil
 }
+
+// progressWriter turns the client's per-file name stream (--info=name1) into
+// shippy's UI: a progress bar in normal mode, one line per file in verbose mode.
+// The client writes to it from a single goroutine during the transfer.
+type progressWriter struct {
+	out     *ui.Output
+	verbose bool
+	total   int
+	count   int
+	buf     []byte
+}
+
+func (w *progressWriter) Write(p []byte) (int, error) {
+	w.buf = append(w.buf, p...)
+	for {
+		i := bytes.IndexByte(w.buf, '\n')
+		if i < 0 {
+			break
+		}
+		line := strings.TrimRight(string(w.buf[:i]), "\r")
+		w.buf = w.buf[i+1:]
+		if line == "" {
+			continue
+		}
+		w.count++
+		if w.verbose {
+			// #nosec G104 -- UI output errors can be safely ignored
+			w.out.Yellow.Printf("  Uploading: %s\n", line)
+		} else {
+			w.out.PrintProgressBar(w.count, w.total, line)
+		}
+	}
+	return len(p), nil
+}
+
+func (w *progressWriter) Close() error { return nil }
 
 // writeFilesList writes the scanned relative paths to a NUL-separated temp file
 // for rsync --files-from --from0. NUL separators keep paths with spaces or

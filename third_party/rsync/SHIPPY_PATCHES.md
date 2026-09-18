@@ -34,6 +34,18 @@ Validated by `rsyncclient/shippy_filesfrom_test.go` against a real rsync
 receiver: exact-list transfer, nested + spaced names, symlink preserved, unlisted
 files excluded.
 
+## Patch: per-file name output for progress UI
+
+`rsyncclient/rsyncclient.go` gains `WithStdout(io.WriteCloser)` (parallel to the
+existing `WithStderr`) so shippy can capture what the client writes to stdout.
+
+`internal/sender/sender.go` printed the transferred file name only when both
+`--info=name` **and** `--info=progress` were set, coupling name output to the
+per-file progress display. Real rsync prints names with `-v`/`--info=name`
+alone. Patched to print on `--info=name` by itself, so shippy can pass
+`--info=name1` (which does not set `--verbose`, hence is not forwarded to the
+remote server) and render its own progress bar / file list from the name stream.
+
 ## Patch: cap literal token size at CHUNK_SIZE (32 KiB)
 
 `internal/sender/sender.go` `sendFile()` read and wrote whole-file literal data

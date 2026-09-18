@@ -183,9 +183,11 @@ func (st *Transfer) sendFile(fileIndex int32, fl file) error {
 		return err
 	}
 
-	if !st.Opts.Server() &&
-		st.Opts.InfoGTE(rsyncopts.INFO_NAME, 1) &&
-		st.Opts.InfoGTE(rsyncopts.INFO_PROGRESS, 1) {
+	// SHIPPY PATCH: print the transferred file name when --info=name is set,
+	// like real rsync's -v. Upstream also required --info=progress, which
+	// coupled name output to the per-file progress display; shippy wants the
+	// names alone to drive its own progress UI. See SHIPPY_PATCHES.md.
+	if !st.Opts.Server() && st.Opts.InfoGTE(rsyncopts.INFO_NAME, 1) {
 		fmt.Fprintln(st.Env.Stdout, fl.path)
 	}
 
