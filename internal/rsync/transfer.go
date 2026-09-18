@@ -201,6 +201,7 @@ func writeFilesList(files []FileInfo) (string, error) {
 		b.WriteByte(0)
 	}
 	if _, err := tmp.WriteString(b.String()); err != nil {
+		// #nosec G104 -- best-effort cleanup of the temp file; the write error below is what matters
 		os.Remove(tmp.Name())
 		return "", fmt.Errorf("failed to write transfer list: %w", err)
 	}
