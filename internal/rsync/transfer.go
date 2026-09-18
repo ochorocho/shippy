@@ -160,10 +160,18 @@ func (s *Syncer) pushToCache(cachePath, listFile string, totalFiles int, out *ui
 	// (see the vendored SHIPPY PATCH), which drives the progress UI. It does not
 	// set --verbose, so it is not forwarded to the remote rsync server.
 	progress := &progressWriter{out: out, verbose: s.verbose, total: totalFiles}
+
+	// The client's logger (SendFileList/"building file list" debug lines) writes
+	// to its stderr. Silence that noise in normal mode; surface it in verbose for
+	// debugging. Genuine transfer failures come back as the Run error, not here.
+	clientStderr := nopWriteCloser{io.Discard}
+	if s.verbose {
+		clientStderr = nopWriteCloser{os.Stderr}
+	}
 	client, err := rsyncclient.New([]string{
 		"-rlt", "--no-perms", "--info=name1",
 		"--files-from=" + listFile, "--from0",
-	}, rsyncclient.WithSender(), rsyncclient.WithStdout(progress))
+	}, rsyncclient.WithSender(), rsyncclient.WithStdout(progress), rsyncclient.WithStderr(clientStderr))
 	if err != nil {
 		return fmt.Errorf("failed to build rsync client: %w", err)
 	}
@@ -237,6 +245,13 @@ func (w *progressWriter) Write(p []byte) (int, error) {
 }
 
 func (w *progressWriter) Close() error { return nil }
+
+// nopWriteCloser adapts an io.Writer to io.WriteCloser (rsyncclient options
+// require a WriteCloser) with a no-op Close, so wrapping os.Stderr never closes
+// it.
+type nopWriteCloser struct{ io.Writer }
+
+func (nopWriteCloser) Close() error { return nil }
 
 // writeFilesList writes the scanned relative paths to a NUL-separated temp file
 // for rsync --files-from --from0. NUL separators keep paths with spaces or
