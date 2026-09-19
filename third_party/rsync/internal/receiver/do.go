@@ -1,0 +1,146 @@
+package receiver
+
+import (
+	"io/fs"
+	"os"
+	"sync"
+
+	"github.com/gokrazy/rsync/internal/rsyncopts"
+	"github.com/gokrazy/rsync/internal/rsyncstats"
+	"github.com/gokrazy/rsync/internal/rsyncwire"
+	"golang.org/x/sync/errgroup"
+)
+
+func isTopDir(f *File) bool {
+	// TODO: once we check the f.Flags:
+	// if !f.FileMode().IsDir() {
+	//    // non-directories can get the top_dir flag set,
+	//    // but it must be ignored (only for protocol reasons).
+	//   return false
+	// }
+	// return (f.Flags & TOP_DIR) != 0
+	return f.Name == "."
+}
+
+func (rt *Transfer) deleteFiles(fileList []*File) error {
+	if rt.IOErrors > 0 {
+		rt.Logger.Printf("IO error encountered, skipping file deletion")
+		return nil
+	}
+
+	for _, f := range fileList {
+		if !isTopDir(f) {
+			continue
+		}
+		rt.Logger.Printf("deleting in %s", f.Name)
+		// Other rsync implementations generate a local file list and compare it
+		// with the remote file list, we re-implement the path→name mapping part
+		// of file list generation here. We could change it for consistency.
+		err := fs.WalkDir(rt.DestRoot.FS(), ".", func(path string, info fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			rt.Logger.Printf("WalkDir(%q)", path)
+			if findInFileList(fileList, path) {
+				return nil
+			}
+			if rt.Opts.Verbose {
+				rt.Logger.Printf("  deleting %s", path)
+			}
+			if rt.Opts.DryRun {
+				return nil
+			}
+			if err := rt.DestRoot.RemoveAll(path); err != nil {
+				rt.Logger.Printf("  deleting %s failed: %v", path, err)
+				// keep going
+			}
+			return fs.SkipDir // skip the just-deleted directory
+		})
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil // destination does not exist, nothing to do
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+// rsync/main.c:do_recv
+func (rt *Transfer) Do(c *rsyncwire.Conn, fileList []*File, noReport bool) (*rsyncstats.TransferStats, error) {
+	if rt.Opts.DeleteMode {
+		if err := rt.deleteFiles(fileList); err != nil {
+			return nil, err
+		}
+	}
+
+	var eg errgroup.Group
+	// Wrap both, the generator and the receiver goroutine, in waitFor() calls
+	// to ensure we don’t block on the generator when the receiver returns an
+	// error, or vice versa (instead, return and let the goroutine finish in the
+	// background).
+	// waitFor calls f and waits for it to complete, but only until the specified
+	// context is cancelled.
+	var closeOnce sync.Once
+	closeOnErr := func(err error) error {
+		if err != nil {
+			closeOnce.Do(func() { c.Close() })
+		}
+		return err
+	}
+	eg.Go(func() error { return closeOnErr(rt.GenerateFiles(fileList)) })
+	eg.Go(func() error { return closeOnErr(rt.RecvFiles(fileList)) })
+	if err := eg.Wait(); err != nil {
+		return nil, err
+	}
+	if rt.retouchDirPerms /* || rt.retouchDirTimes */ {
+		if err := rt.touchUpDirs(fileList); err != nil {
+			return nil, err
+		}
+	}
+
+	var stats *rsyncstats.TransferStats
+	if !noReport {
+		var err error
+		stats, err = rt.report(c)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// send final goodbye message
+	if err := c.WriteInt32(-1); err != nil {
+		return nil, err
+	}
+
+	return stats, nil
+}
+
+// rsync/main.c:report
+func (rt *Transfer) report(c *rsyncwire.Conn) (*rsyncstats.TransferStats, error) {
+	// read statistics:
+	// total bytes read (from network connection)
+	read, err := c.ReadInt64()
+	if err != nil {
+		return nil, err
+	}
+	// total bytes written (to network connection)
+	written, err := c.ReadInt64()
+	if err != nil {
+		return nil, err
+	}
+	// total size of files
+	size, err := c.ReadInt64()
+	if err != nil {
+		return nil, err
+	}
+	if rt.Opts.InfoGTE(rsyncopts.INFO_STATS, 1) {
+		rt.Logger.Printf("server sent stats: read=%d, written=%d, size=%d", read, written, size)
+	}
+
+	return &rsyncstats.TransferStats{
+		Read:    read,
+		Written: written,
+		Size:    size,
+	}, nil
+}

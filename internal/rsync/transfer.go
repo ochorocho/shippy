@@ -1,333 +1,228 @@
 package rsync
 
 import (
-	"encoding/json"
+	"bytes"
+	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/ochorocho/shippy/internal/errors"
+	"github.com/gokrazy/rsync/rsyncclient"
+
 	"github.com/ochorocho/shippy/internal/ssh"
 	"github.com/ochorocho/shippy/internal/ui"
 )
 
-// cacheManifestFile maps relPath→sha256 of the cache contents. It lives outside
-// .cache/ so the rsync promote never copies it into a release.
-const cacheManifestFile = ".shippy/cache-manifest.json"
-
-// remoteClient is the subset of *ssh.Client the syncer needs. As an interface
-// it lets tests assert the exact remote commands (and their shell quoting)
-// using fabricated file lists and a recording fake, with no SSH connection.
+// remoteClient is the subset of *ssh.Client the syncer needs. As an interface it
+// lets tests substitute a fake that runs the rsync receiver locally, with no SSH
+// connection.
 type remoteClient interface {
 	RunCommand(cmd string) (string, error)
 	MkdirAll(path string) error
-	UploadFile(localPath, remotePath string, mode os.FileMode) error
-	CreateSymlink(target, linkPath string) error
+	RsyncSender(remoteCmd string, run func(io.ReadWriteCloser) error) error
 }
 
-// Syncer handles file synchronization over SSH
+// Syncer handles file synchronization over SSH using rsync.
 type Syncer struct {
 	client     remoteClient
-	remotePath string
+	remotePath string // release directory (rsync promote destination)
 	verbose    bool
-	deployPath string // Base deploy path for cache directory
+	deployPath string // base deploy path (holds .cache/ and .shippy/)
+	sourceDir  string // local source root the scanned RelPaths are relative to
 }
 
-// NewSyncer creates a new file syncer
-func NewSyncer(client remoteClient, remotePath string, verbose bool, deployPath string) *Syncer {
+// NewSyncer creates a new file syncer. sourceDir is the local directory the
+// scanned files are relative to (config rsync_src).
+func NewSyncer(client remoteClient, remotePath string, verbose bool, deployPath, sourceDir string) *Syncer {
 	return &Syncer{
 		client:     client,
 		remotePath: remotePath,
 		verbose:    verbose,
 		deployPath: deployPath,
+		sourceDir:  sourceDir,
 	}
 }
 
-// Sync synchronizes files to the remote server using a cache directory
+// Sync transfers the scanned files to the release directory using rsync:
+//  1. rsync-push the exact file list into a persistent remote .cache/ (block
+//     delta over a single stream; unchanged files are skipped natively, and
+//     --delete prunes files removed from the project so the cache stays exactly
+//     the scanned set);
+//  2. mirror .cache/ -> the fresh release directory with the real remote rsync.
+//
+// The scanned file list drives the push, so filtering stays in shippy's go-git
+// scanner (see NewScanner) rather than rsync's pattern matching.
 func (s *Syncer) Sync(files []FileInfo) error {
 	out := ui.New()
 
 	fmt.Printf("\n")
 	// #nosec G104 -- Printf errors in UI output can be safely ignored
-	out.Blue.Printf("→ Analyzing %d files for synchronization\n", len(files))
+	out.Blue.Printf("→ Transferring %d files via rsync\n", len(files))
 
-	// Use remote .cache directory as intermediate upload target
 	cachePath := filepath.Join(s.deployPath, ".cache")
-
-	// Create cache directory on remote
 	if err := s.client.MkdirAll(cachePath); err != nil {
 		return fmt.Errorf("failed to create remote cache directory: %w", err)
 	}
 
-	// Determine which files need uploading by comparing with remote cache
-	// Build a map of remote files for efficient lookup
-	out.Info("  Building remote cache index...")
-	remoteFiles, err := s.getRemoteFileIndex(cachePath)
+	// Ensure the release directory (and its parents) exists before the promote.
+	// The deployer normally creates it first, but a tridge rsync receiver only
+	// creates the final path component, not intermediate parents, so the mirror
+	// below would fail without this. Idempotent when the dir already exists.
+	if err := s.client.MkdirAll(s.remotePath); err != nil {
+		return fmt.Errorf("failed to create remote release directory: %w", err)
+	}
+
+	// Write the NUL-separated transfer list once, reused for the push and the
+	// promote.
+	listFile, err := writeFilesList(files)
 	if err != nil {
-		// If we can't get index, upload all files
-		out.Info("  Warning: couldn't read remote cache, uploading all files: %v", err)
-		remoteFiles = make(map[string]RemoteFileInfo)
+		return err
 	}
+	defer os.Remove(listFile)
 
-	filesToUpload := []FileInfo{}
-	skipped := 0
-
-	// Build a set of local file paths for deletion detection
-	localFiles := make(map[string]bool)
-	for _, file := range files {
-		localFiles[file.RelPath] = true
-	}
-
-	// Compared by checksum, not mtime: uploads don't preserve mtimes and CI
-	// checkouts restamp every file, which forced a full re-upload every deploy.
-	manifest := s.readCacheManifest()
-
-	out.Info("  Comparing local files with remote cache...")
-	for _, file := range files {
-		remoteInfo, exists := remoteFiles[file.RelPath]
-
-		// Symlinks have no meaningful content size (the cache index reports the
-		// target's size), so they are compared by manifest checksum only - the
-		// checksum is derived from the link target, catching a re-pointed link.
-		isSymlink := file.LinkTarget != ""
-
-		needsUpload := !exists ||
-			file.Checksum == "" ||
-			manifest[file.RelPath] != file.Checksum ||
-			(!isSymlink && remoteInfo.Size != file.Size)
-
-		if needsUpload {
-			filesToUpload = append(filesToUpload, file)
-		} else {
-			skipped++
-		}
-	}
-
-	// Find files that exist in remote cache but not locally (need deletion)
-	filesToDelete := []string{}
-	for remotePath := range remoteFiles {
-		if !localFiles[remotePath] {
-			filesToDelete = append(filesToDelete, remotePath)
-		}
-	}
-
-	fmt.Printf("\n")
-	if len(filesToDelete) > 0 {
-		out.Success("Found %d new/changed files, %d unchanged (cached), %d to delete", len(filesToUpload), skipped, len(filesToDelete))
-	} else if skipped > 0 {
-		out.Success("Found %d new/changed files, %d unchanged (cached)", len(filesToUpload), skipped)
-	} else {
-		out.Success("Found %d files to upload", len(filesToUpload))
-	}
-
-	// Upload only changed/new files
-	if err := s.uploadWithProgress(filesToUpload, cachePath, out); err != nil {
+	// 1. Push the listed files into the cache over the SSH connection. The push
+	// runs rsync --delete, so the remote rsync prunes files removed from the
+	// project during the transfer, leaving the cache exactly the scanned set.
+	if err := s.pushToCache(cachePath, listFile, len(files), out); err != nil {
 		return err
 	}
 
-	// Delete files from cache that no longer exist locally
-	if len(filesToDelete) > 0 {
-		fmt.Printf("\n")
-		// #nosec G104 -- Printf errors in UI output can be safely ignored
-		out.Blue.Printf("→ Removing %d deleted files from cache\n", len(filesToDelete))
-
-		deleted := 0
-		for _, fileToDelete := range filesToDelete {
-			remoteCachePath := filepath.Join(cachePath, fileToDelete)
-
-			if s.verbose {
-				// #nosec G104 -- Printf errors in UI output can be safely ignored
-				out.Yellow.Printf("  Deleting: %s\n", fileToDelete)
-			}
-
-			// Delete the file from cache
-			deleteCmd := fmt.Sprintf("rm -f %s", ssh.Quote(remoteCachePath))
-			if _, err := s.client.RunCommand(deleteCmd); err != nil {
-				// Non-fatal: log but continue
-				if s.verbose {
-					out.Info("  Warning: failed to delete %s: %v", fileToDelete, err)
-				}
-			} else {
-				deleted++
-			}
-		}
-
-		out.Success("Removed %d files from cache", deleted)
-	}
-
-	// Cache now matches the local tree; persist the manifest (best-effort).
-	if err := s.writeCacheManifest(files); err != nil {
-		out.Info("  Warning: could not write cache manifest (next deploy re-uploads everything): %v", err)
-	}
-
-	// Now copy from cache to release directory (rsync handles deletions)
-	fmt.Printf("\n")
-	out.Info("  Syncing cache to release directory (with deletions)...")
-
-	// Use rsync on the remote server to copy from cache to release
-	// --delete removes files that only exist in release (not in cache)
-	copyCmd := fmt.Sprintf("rsync -rlt --no-perms --delete %s/ %s/", ssh.Quote(cachePath), ssh.Quote(s.remotePath))
-	output, err := s.client.RunCommand(copyCmd)
-	if err != nil {
-		return fmt.Errorf("failed to copy from cache to release: %w (output: %s)", err, output)
+	// 2. Mirror cache -> release with the real remote rsync (into a fresh
+	// timestamped release directory).
+	out.Info("  Promoting cache to release directory...")
+	promote := fmt.Sprintf(
+		"rsync -rlt --no-perms --delete %s/ %s/",
+		ssh.Quote(cachePath), ssh.Quote(s.remotePath),
+	)
+	if output, err := s.client.RunCommand(promote); err != nil {
+		return fmt.Errorf("failed to promote cache to release: %w (output: %s)", err, output)
 	}
 
 	out.Success("Release directory synchronized")
-
 	return nil
 }
 
-// RemoteFileInfo holds remote file metadata
-type RemoteFileInfo struct {
-	Size int64
-}
+// pushToCache runs the rsync client-sender against the remote rsync receiver,
+// transferring exactly the files in listFile into cachePath.
+func (s *Syncer) pushToCache(cachePath, listFile string, totalFiles int, out *ui.Output) error {
+	// --info=name1 makes the client emit each transferred file's path on stdout
+	// (see the vendored SHIPPY PATCH), which drives the progress UI. It does not
+	// set --verbose, so it is not forwarded to the remote rsync server.
+	progress := &progressWriter{out: out, verbose: s.verbose, total: totalFiles}
 
-// getRemoteFileIndex builds an index of all files in remote cache with their size
-func (s *Syncer) getRemoteFileIndex(cachePath string) (map[string]RemoteFileInfo, error) {
-	// Use find + stat to get all file info in one command.
-	// Output format: path<tab>size
-	// Symlinks (-type l) are indexed too so a cached symlink counts as present;
-	// its reported size is irrelevant (symlinks are compared by checksum only).
-	//
-	// stat syntax differs by platform: GNU/coreutils (Linux) uses -c '%n\t%s',
-	// BSD (macOS) uses -f '%N\t%z'. Try GNU first per find batch and fall back
-	// to BSD, so the cache works against either target without a probe.
-	cmd := fmt.Sprintf(
-		"cd %s && find . \\( -type f -o -type l \\) -exec sh -c "+
-			"'stat -c \"%%n\t%%s\" \"$@\" 2>/dev/null || stat -f \"%%N\t%%z\" \"$@\"' "+
-			"_ {} + 2>/dev/null || true",
-		ssh.Quote(cachePath),
-	)
-	output, err := s.client.RunCommand(cmd)
+	// The client's logger (SendFileList/"building file list" debug lines) writes
+	// to its stderr. Silence that noise in normal mode; surface it in verbose for
+	// debugging. Genuine transfer failures come back as the Run error, not here.
+	clientStderr := nopWriteCloser{io.Discard}
+	if s.verbose {
+		clientStderr = nopWriteCloser{os.Stderr}
+	}
+	client, err := rsyncclient.New([]string{
+		"-rlt", "--no-perms", "--delete", "--info=name1",
+		"--files-from=" + listFile, "--from0",
+	}, rsyncclient.WithSender(), rsyncclient.WithStdout(progress), rsyncclient.WithStderr(clientStderr))
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("failed to build rsync client: %w", err)
 	}
 
-	index := make(map[string]RemoteFileInfo)
-	lines := strings.Split(strings.TrimSpace(output), "\n")
+	// The remote receiver is the host's real rsync, invoked as a server with the
+	// options the client derives (the file list is sent in-band, not here).
+	serverArgs := client.ServerCommandOptions(cachePath)
+	quoted := make([]string, len(serverArgs))
+	for i, a := range serverArgs {
+		quoted[i] = ssh.Quote(a)
+	}
+	remoteCmd := "rsync " + strings.Join(quoted, " ")
 
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
+	src := strings.TrimSuffix(filepath.Clean(s.sourceDir), "/") + "/"
+
+	out.Info("  Uploading changed files to cache...")
+	var result *rsyncclient.Result
+	err = s.client.RsyncSender(remoteCmd, func(conn io.ReadWriteCloser) error {
+		r, runErr := client.Run(context.Background(), conn, []string{src})
+		result = r
+		return runErr
+	})
+	if !s.verbose && progress.count > 0 {
+		out.ClearLine()
+	}
+	if err != nil {
+		return fmt.Errorf("rsync transfer failed: %w", err)
+	}
+
+	if result != nil && result.Stats != nil {
+		out.Success("Uploaded %d files, %.2f MB (%.2f MB over the wire)",
+			progress.count,
+			float64(result.Stats.Size)/(1024*1024),
+			float64(result.Stats.Written)/(1024*1024))
+	}
+	return nil
+}
+
+// progressWriter turns the client's per-file name stream (--info=name1) into
+// shippy's UI: a progress bar in normal mode, one line per file in verbose mode.
+// The client writes to it from a single goroutine during the transfer.
+type progressWriter struct {
+	out     *ui.Output
+	verbose bool
+	total   int
+	count   int
+	buf     []byte
+}
+
+func (w *progressWriter) Write(p []byte) (int, error) {
+	w.buf = append(w.buf, p...)
+	for {
+		i := bytes.IndexByte(w.buf, '\n')
+		if i < 0 {
+			break
+		}
+		line := strings.TrimRight(string(w.buf[:i]), "\r")
+		w.buf = w.buf[i+1:]
 		if line == "" {
 			continue
 		}
-
-		parts := strings.Split(line, "\t")
-		if len(parts) != 2 {
-			continue
+		w.count++
+		if w.verbose {
+			// #nosec G104 -- UI output errors can be safely ignored
+			w.out.Yellow.Printf("  Uploading: %s\n", line)
+		} else {
+			w.out.PrintProgressBar(w.count, w.total, line)
 		}
-
-		// Remove leading "./" from path
-		path := strings.TrimPrefix(parts[0], "./")
-
-		var size int64
-		// #nosec G104 -- Sscanf errors are acceptable here, defaults to 0
-		fmt.Sscanf(parts[1], "%d", &size)
-
-		index[path] = RemoteFileInfo{Size: size}
 	}
-
-	return index, nil
+	return len(p), nil
 }
 
-func (s *Syncer) manifestPath() string {
-	return filepath.Join(s.deployPath, cacheManifestFile)
-}
+func (w *progressWriter) Close() error { return nil }
 
-// readCacheManifest returns the stored checksums. Any failure yields an empty
-// map, which re-uploads everything.
-func (s *Syncer) readCacheManifest() map[string]string {
-	cmd := fmt.Sprintf("cat %s 2>/dev/null || true", ssh.Quote(s.manifestPath()))
-	output, err := s.client.RunCommand(cmd)
+// nopWriteCloser adapts an io.Writer to io.WriteCloser (rsyncclient options
+// require a WriteCloser) with a no-op Close, so wrapping os.Stderr never closes
+// it.
+type nopWriteCloser struct{ io.Writer }
+
+func (nopWriteCloser) Close() error { return nil }
+
+// writeFilesList writes the scanned relative paths to a NUL-separated temp file
+// for rsync --files-from --from0. NUL separators keep paths with spaces or
+// newlines intact.
+func writeFilesList(files []FileInfo) (string, error) {
+	tmp, err := os.CreateTemp("", "shippy-files-*.list")
 	if err != nil {
-		return map[string]string{}
+		return "", fmt.Errorf("failed to create transfer list: %w", err)
 	}
-
-	manifest := make(map[string]string)
-	if err := json.Unmarshal([]byte(output), &manifest); err != nil {
-		return map[string]string{}
-	}
-	return manifest
-}
-
-// writeCacheManifest uploads the checksum manifest for the synced files.
-func (s *Syncer) writeCacheManifest(files []FileInfo) error {
-	manifest := make(map[string]string, len(files))
-	for _, file := range files {
-		manifest[file.RelPath] = file.Checksum
-	}
-
-	data, err := json.Marshal(manifest)
-	if err != nil {
-		return fmt.Errorf("failed to marshal cache manifest: %w", err)
-	}
-
-	tmp, err := os.CreateTemp("", "shippy-cache-manifest-*.json")
-	if err != nil {
-		return fmt.Errorf("failed to create temp manifest: %w", err)
-	}
-	defer os.Remove(tmp.Name())
 	defer tmp.Close()
 
-	if _, err := tmp.Write(data); err != nil {
-		return fmt.Errorf("failed to write temp manifest: %w", err)
+	var b strings.Builder
+	for _, f := range files {
+		b.WriteString(f.RelPath)
+		b.WriteByte(0)
 	}
-
-	return s.client.UploadFile(tmp.Name(), s.manifestPath(), 0o600)
-}
-
-// uploadWithProgress uploads files with progress reporting
-func (s *Syncer) uploadWithProgress(filesToUpload []FileInfo, cachePath string, out *ui.Output) error {
-	if len(filesToUpload) == 0 {
-		out.Info("  No files to upload - all files are cached")
-		return nil
+	if _, err := tmp.WriteString(b.String()); err != nil {
+		// #nosec G104 -- best-effort cleanup of the temp file; the write error below is what matters
+		os.Remove(tmp.Name())
+		return "", fmt.Errorf("failed to write transfer list: %w", err)
 	}
-
-	fmt.Printf("\n")
-	// #nosec G104 -- Printf errors in UI output can be safely ignored
-	out.Blue.Printf("→ Uploading %d changed/new files to cache\n", len(filesToUpload))
-	fmt.Printf("\n")
-
-	transferred := 0
-	var totalSize int64
-
-	for i, file := range filesToUpload {
-		remoteCachePath := filepath.Join(cachePath, file.RelPath)
-
-		if s.verbose {
-			// Verbose mode: show each file
-			// #nosec G104 -- Printf errors in UI output can be safely ignored
-			out.Yellow.Printf("  [%d/%d] Uploading: %s\n", i+1, len(filesToUpload), file.RelPath)
-		} else {
-			// Progress bar mode: show progress with current file
-			out.PrintProgressBar(i+1, len(filesToUpload), file.RelPath)
-		}
-
-		// Symlinks are recreated as symlinks; only regular files upload content.
-		if file.LinkTarget != "" {
-			if err := s.client.CreateSymlink(file.LinkTarget, remoteCachePath); err != nil {
-				if !s.verbose {
-					out.ClearLine()
-				}
-				return errors.FileUploadError(file.RelPath, err)
-			}
-		} else if err := s.client.UploadFile(file.FullPath, remoteCachePath, file.Mode); err != nil {
-			if !s.verbose {
-				out.ClearLine()
-			}
-			return errors.FileUploadError(file.RelPath, err)
-		}
-
-		transferred++
-		totalSize += file.Size
-	}
-
-	if !s.verbose {
-		out.ClearLine()
-	}
-
-	fmt.Printf("\n")
-	out.Success("Uploaded %d files to cache (%.2f MB)", transferred, float64(totalSize)/(1024*1024))
-	return nil
+	return tmp.Name(), nil
 }
