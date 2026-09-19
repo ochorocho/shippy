@@ -415,6 +415,19 @@ func (s *scopedWalker) emitList(list []string) error {
 	}
 	sort.Strings(entries)
 
+	// SHIPPY PATCH: emit the root "." as a top-level directory so a --delete
+	// receiver treats the whole tree as a deletion scope and prunes recursively
+	// (files whose entire parent directory was removed are otherwise missed).
+	if rootInfo, err := fs.Lstat(s.source.FS(), "."); err == nil {
+		rootWpath := "."
+		if s.prefix != "" {
+			rootWpath = s.prefix
+		}
+		if err := s.emit(".", rootWpath, byte(rsync.XMIT_LONG_NAME|rsync.XMIT_TOP_DIR), rootInfo); err != nil {
+			return err
+		}
+	}
+
 	for _, name := range entries {
 		info, err := fs.Lstat(s.source.FS(), name)
 		if err != nil {

@@ -339,6 +339,21 @@ func ClientRun(osenv *rsyncos.Env, opts *rsyncopts.Options, conn io.ReadWriteClo
 			}
 		}
 
+		// SHIPPY PATCH: under --delete a real rsync receiver reads the client's
+		// filter list (recv_filter_list) before the file list; without it the
+		// receiver blocks and the push deadlocks. Send it only when --delete is
+		// active — a receiver without --delete does not read it, and sending it
+		// then desyncs the stream. Mirrors the receiver branch below.
+		if opts.DeleteMode() {
+			for _, rule := range opts.FilterRules() {
+				c.WriteInt32(int32(len(rule)))
+				c.WriteString(rule)
+			}
+			if err := c.WriteInt32(0); err != nil { // exclusionListEnd
+				return nil, err
+			}
+		}
+
 		stats, err := st.Do(crd, cwr, rsync.FileSystemRoot, paths, nil)
 		if err != nil {
 			return nil, err

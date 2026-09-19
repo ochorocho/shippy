@@ -150,16 +150,11 @@ func (o *Options) ServerOptions() []string {
 	// 	args[ac++] = arg;
 	// }
 
-	// if (delete_excluded)
-	// 	args[ac++] = "--delete-excluded";
-	// else if (delete_mode)
-	// 	args[ac++] = "--delete";
-	//
-	// NOTE: shippy deliberately does NOT forward --delete here. gokr-rsync's
-	// sender does not drive the receiver's deletion phase, which deadlocks
-	// against an openrsync (macOS) --server receiver. shippy performs the
-	// authoritative deletion in its later cache->release promote using the real
-	// remote rsync with --files-from + --delete. See SHIPPY_PATCHES.md.
+	// SHIPPY PATCH: forward --delete so the remote (real) rsync receiver prunes
+	// extraneous files during the push. See SHIPPY_PATCHES.md.
+	if o.DeleteMode() {
+		sargv = append(sargv, "--delete")
+	}
 
 	// if (size_only)
 	// 	args[ac++] = "--size-only";

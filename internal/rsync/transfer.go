@@ -47,12 +47,12 @@ func NewSyncer(client remoteClient, remotePath string, verbose bool, deployPath,
 
 // Sync transfers the scanned files to the release directory using rsync:
 //  1. rsync-push the exact file list into a persistent remote .cache/ (block
-//     delta over a single stream; unchanged files are skipped natively);
-//  2. promote .cache/ -> release with the real remote rsync using
-//     --files-from + --delete, which makes the release exactly the scanned set
-//     (pruning anything stale in the cache).
+//     delta over a single stream; unchanged files are skipped natively, and
+//     --delete prunes files removed from the project so the cache stays exactly
+//     the scanned set);
+//  2. mirror .cache/ -> the fresh release directory with the real remote rsync.
 //
-// The transfer list drives both steps, so filtering stays in shippy's go-git
+// The scanned file list drives the push, so filtering stays in shippy's go-git
 // scanner (see NewScanner) rather than rsync's pattern matching.
 func (s *Syncer) Sync(files []FileInfo) error {
 	out := ui.New()
@@ -82,21 +82,15 @@ func (s *Syncer) Sync(files []FileInfo) error {
 	}
 	defer os.Remove(listFile)
 
-	// 1. Push the listed files into the cache over the SSH connection.
+	// 1. Push the listed files into the cache over the SSH connection. The push
+	// runs rsync --delete, so the remote rsync prunes files removed from the
+	// project during the transfer, leaving the cache exactly the scanned set.
 	if err := s.pushToCache(cachePath, listFile, len(files), out); err != nil {
 		return err
 	}
 
-	// 2. Prune the cache to exactly the scanned set. gokr-rsync cannot forward
-	// --delete (its sender deadlocks an openrsync receiver), so files removed
-	// from the project would otherwise linger in the cache and be promoted into
-	// the release. See third_party/rsync/SHIPPY_PATCHES.md.
-	if err := s.pruneCache(cachePath, files); err != nil {
-		return err
-	}
-
-	// 3. Mirror cache -> release with the real remote rsync. A plain --delete
-	// mirror makes the release exactly the (now-clean) cache.
+	// 2. Mirror cache -> release with the real remote rsync (into a fresh
+	// timestamped release directory).
 	out.Info("  Promoting cache to release directory...")
 	promote := fmt.Sprintf(
 		"rsync -rlt --no-perms --delete %s/ %s/",
@@ -107,49 +101,6 @@ func (s *Syncer) Sync(files []FileInfo) error {
 	}
 
 	out.Success("Release directory synchronized")
-	return nil
-}
-
-// pruneCache removes files and symlinks from the remote cache that are not in
-// the scanned set, so the subsequent mirror promote yields exactly that set.
-// find is used with paths only (no stat), portable across GNU and BSD.
-func (s *Syncer) pruneCache(cachePath string, files []FileInfo) error {
-	want := make(map[string]bool, len(files))
-	for _, f := range files {
-		want[f.RelPath] = true
-	}
-
-	listCmd := fmt.Sprintf("cd %s && find . \\( -type f -o -type l \\) -print0 2>/dev/null", ssh.Quote(cachePath))
-	output, err := s.client.RunCommand(listCmd)
-	if err != nil {
-		return fmt.Errorf("failed to list cache for pruning: %w", err)
-	}
-
-	var stale []string
-	for _, p := range strings.Split(output, "\x00") {
-		p = strings.TrimPrefix(p, "./")
-		if p == "" || want[p] {
-			continue
-		}
-		stale = append(stale, p)
-	}
-	if len(stale) == 0 {
-		return nil
-	}
-
-	// Delete in batches to stay within remote argv limits.
-	const batchSize = 100
-	for start := 0; start < len(stale); start += batchSize {
-		end := min(start+batchSize, len(stale))
-		quoted := make([]string, 0, end-start)
-		for _, p := range stale[start:end] {
-			quoted = append(quoted, ssh.Quote(filepath.Join(cachePath, p)))
-		}
-		rm := "rm -f -- " + strings.Join(quoted, " ")
-		if output, err := s.client.RunCommand(rm); err != nil {
-			return fmt.Errorf("failed to prune stale cache files: %w (output: %s)", err, output)
-		}
-	}
 	return nil
 }
 
@@ -169,7 +120,7 @@ func (s *Syncer) pushToCache(cachePath, listFile string, totalFiles int, out *ui
 		clientStderr = nopWriteCloser{os.Stderr}
 	}
 	client, err := rsyncclient.New([]string{
-		"-rlt", "--no-perms", "--info=name1",
+		"-rlt", "--no-perms", "--delete", "--info=name1",
 		"--files-from=" + listFile, "--from0",
 	}, rsyncclient.WithSender(), rsyncclient.WithStdout(progress), rsyncclient.WithStderr(clientStderr))
 	if err != nil {

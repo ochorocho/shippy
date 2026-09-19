@@ -61,18 +61,28 @@ Without this, pushing any non-trivial file (>32 KiB) to a real rsync server
 fails. Covered by the large-file case in shippy's `internal/rsync` tests and the
 BATS integration deploy.
 
-## Deliberately NOT patched: `--delete` forwarding
+## Patch: `--delete` forwarding on the client-sender
 
-`internal/rsyncopts/serveroptions.go` leaves the `--delete` forwarding commented
-out (upstream default). gokr-rsync's sender does not drive the receiver's
-deletion phase; forwarding `--delete` **deadlocks** against an openrsync (macOS)
-`--server` receiver.
+Lets the remote (real) rsync prune extraneous files during a push, so shippy no
+longer needs a separate find+rm cache prune. Three pieces, all `SHIPPY PATCH`:
 
-Shippy instead performs authoritative deletion in its **cache → release promote**
-step, run by the *real* remote rsync (which supports `--files-from` + `--delete`
-fully): `rsync -rlt --no-perms --delete --files-from=<list> --from0 cache/ release/`.
-Consequence: the persistent `.cache/` may accumulate files removed from the
-project over time (disk only) — releases are always exactly the scanned set.
+- `internal/rsyncopts/serveroptions.go` — forward `--delete` to the server when
+  `DeleteMode()` (was commented out upstream).
+- `internal/maincmd/clientmaincmd.go` — the client-sender now sends the
+  client→server **filter list** (rules + terminator `0`) before the file list,
+  but **only when `--delete` is set**. A real rsync receiver reads it
+  (`recv_filter_list`) under `--delete`; without the send the receiver blocks and
+  the push **deadlocks**. Without `--delete` the receiver does not read it, so the
+  send is gated to avoid desyncing the stream.
+- `internal/sender/flist.go` `emitList` — emit the root `.` as a top-level
+  directory (`XMIT_TOP_DIR`) so `--delete` deletes recursively over the whole
+  tree. Without it, `--files-from` + `--delete` only deletes inside directories
+  that still contain a listed file, so a file whose entire parent directory was
+  removed would survive.
+
+Verified against **openrsync** (macOS) and **tridge rsync 3.2.7** (Linux):
+`rsyncclient/shippy_filesfrom_test.go` `TestShippyDeletePrunesCompletely` covers
+a removed file, a removed whole directory, and a removed nested subtree.
 
 ## Updating / rebasing
 
