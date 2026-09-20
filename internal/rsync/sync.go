@@ -1,9 +1,7 @@
 package rsync
 
 import (
-	"crypto/sha256"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,7 +17,6 @@ type FileInfo struct {
 	Size     int64
 	Mode     os.FileMode
 	ModTime  time.Time
-	Checksum string
 	// LinkTarget is the verbatim target of a symlink. Empty for regular files.
 	// When set, the entry is recreated as a symlink on the remote rather than
 	// having its content uploaded (Composer/TYPO3 rely on runtime symlinks such
@@ -137,19 +134,9 @@ func (s *Scanner) Scan() ([]FileInfo, error) {
 				FullPath:   path,
 				Mode:       info.Mode(),
 				ModTime:    info.ModTime(),
-				Checksum:   symlinkChecksum(target),
 				LinkTarget: target,
 			})
 			return nil
-		}
-
-		// Calculate checksum for regular files
-		checksum := ""
-		if info.Mode().IsRegular() {
-			checksum, err = calculateChecksum(path)
-			if err != nil {
-				return fmt.Errorf("failed to calculate checksum for %s: %w", path, err)
-			}
 		}
 
 		files = append(files, FileInfo{
@@ -158,7 +145,6 @@ func (s *Scanner) Scan() ([]FileInfo, error) {
 			Size:     info.Size(),
 			Mode:     info.Mode(),
 			ModTime:  info.ModTime(),
-			Checksum: checksum,
 		})
 
 		return nil
@@ -260,30 +246,4 @@ func isSegmentPrefix(dirParts []string, pattern string) bool {
 		}
 	}
 	return true
-}
-
-// symlinkChecksum derives a stable checksum for a symlink from its target, so a
-// retargeted symlink is detected as changed by the manifest comparison. The
-// "symlink\x00" prefix keeps it from ever colliding with a regular file whose
-// content happens to equal the target string.
-func symlinkChecksum(target string) string {
-	sum := sha256.Sum256([]byte("symlink\x00" + target))
-	return fmt.Sprintf("%x", sum)
-}
-
-// calculateChecksum calculates SHA256 checksum of a file
-func calculateChecksum(path string) (string, error) {
-	// #nosec G304 -- Path comes from scanned local files within project directory
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-
-	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }

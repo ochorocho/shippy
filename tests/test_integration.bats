@@ -156,18 +156,14 @@ teardown() {
   [ "$locked_count" -eq 1 ]
 }
 
-@test "Checksum cache: CI mtime reset skips uploads, changed same-size file is not skipped" {
+@test "rsync redeploy: a changed same-size file is deployed, not silently skipped" {
   set -eu -o pipefail
 
-  # Reproduces issue #34 end to end. The old code compared size+mtime, which:
-  #   1. re-uploaded every file in CI (a fresh checkout resets all mtimes), and
-  #   2. could skip a file that changed but kept the same size with an older
-  #      mtime, silently deploying stale content.
-  # The checksum manifest must fix both.
+  # Guards issue #34 in the rsync era: rsync's quick check transfers a file
+  # whenever size+mtime differ, so a changed same-size file (with a different
+  # mtime) must reach the release rather than being skipped as "unchanged".
   cd "$BATS_TEST_DIRNAME/config-test"
 
-  # Small, stable source tree. settings.php holds a 10-byte payload we later
-  # rewrite in place to the same length.
   src="${BATS_TMPDIR}/shippy-cache-src"
   rm -rf "$src"
   mkdir -p "$src/app"
@@ -195,40 +191,27 @@ hosts:
       StrictHostKeyChecking: accept-new
 EOF
 
-  # First deploy: empty cache, all three files upload.
+  # First deploy.
   run ${BIN} deploy production --config cache-test.yaml
   assert_success
-  assert_output --partial "Found 3 files to upload"
-
-  # Simulate a fresh CI checkout: every file gets a brand-new (newer) mtime.
-  find "$src" -type f -exec touch {} +
-
-  # Second deploy: identical content, so the checksum cache must skip all three
-  # despite every mtime now being newer than the cache.
-  run ${BIN} deploy production --config cache-test.yaml
+  run docker compose -f "${BATS_TEST_DIRNAME}/docker-compose.yaml" exec -T typo3-shippy-apache \
+    cat /var/www/html/current/app/settings.php
   assert_success
-  assert_output --partial "0 new/changed files, 3 unchanged (cached)"
-  assert_output --partial "No files to upload - all files are cached"
+  assert_output --partial "['x'=>1];"
 
-  # Change one file to the SAME size but an OLDER mtime, the exact shape the old
-  # mtime comparison wrongly skipped. Checksum must catch it.
+  # Change settings.php to the SAME byte length with a different (older) mtime,
+  # the exact shape the old size+mtime comparison wrongly skipped.
   printf "['x'=>9];\n" > "$src/app/settings.php"
   touch -t 200001010000 "$src/app/settings.php"
 
   run ${BIN} deploy production --config cache-test.yaml
   assert_success
-  assert_output --partial "1 new/changed files, 2 unchanged (cached)"
 
-  # The activated release must have the new content, not the stale one.
+  # The activated release must carry the new content, not the stale one.
   run docker compose -f "${BATS_TEST_DIRNAME}/docker-compose.yaml" exec -T typo3-shippy-apache \
     cat /var/www/html/current/app/settings.php
   assert_success
   assert_output --partial "['x'=>9];"
-
-  # The manifest lives in .shippy/, never inside the promoted .cache/.
-  run docker compose -f "${BATS_TEST_DIRNAME}/docker-compose.yaml" exec -T typo3-shippy-apache \
-    test -f /var/www/html/.shippy/cache-manifest.json
-  assert_success
 
   rm -f cache-test.yaml
 }

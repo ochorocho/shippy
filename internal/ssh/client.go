@@ -1,6 +1,7 @@
 package ssh
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	gokrsync "github.com/gokrazy/rsync"
 	sshagent "github.com/xanzy/ssh-agent"
 	"golang.org/x/crypto/ssh"
 
@@ -402,6 +404,51 @@ func (c *Client) RunCommandWithOutput(cmd string, stdout, stderr io.Writer) erro
 	return nil
 }
 
+// RsyncSender starts remoteCmd (a remote `rsync --server ...` receiver) over the
+// SSH connection and hands run an io.ReadWriteCloser wired to the command's
+// stdin+stdout, so a local rsync client can speak the rsync protocol to the real
+// remote rsync. Stderr from the remote rsync is captured and surfaced on failure.
+func (c *Client) RsyncSender(remoteCmd string, run func(io.ReadWriteCloser) error) error {
+	session, err := c.client.NewSession()
+	if err != nil {
+		return shippyerrors.SSHError("creating rsync SSH session", err)
+	}
+	defer session.Close()
+
+	stdin, err := session.StdinPipe()
+	if err != nil {
+		return shippyerrors.SSHError("opening rsync stdin", err)
+	}
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		return shippyerrors.SSHError("opening rsync stdout", err)
+	}
+	var stderr bytes.Buffer
+	session.Stderr = &stderr
+
+	if err := session.Start(remoteCmd); err != nil {
+		return shippyerrors.CommandError(remoteCmd, strings.TrimSpace(stderr.String()), err)
+	}
+
+	// The client reads the server's stdout and writes to its stdin.
+	runErr := run(&gokrsync.BothCloser{
+		ReadCloser:  io.NopCloser(stdout),
+		WriteCloser: stdin,
+	})
+
+	waitErr := session.Wait()
+	if runErr != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return fmt.Errorf("%w (remote rsync: %s)", runErr, msg)
+		}
+		return runErr
+	}
+	if waitErr != nil {
+		return shippyerrors.CommandError(remoteCmd, strings.TrimSpace(stderr.String()), waitErr)
+	}
+	return nil
+}
+
 // UploadFile uploads a file to the remote server
 func (c *Client) UploadFile(localPath, remotePath string, mode os.FileMode) error {
 	// Validate local path to prevent directory traversal
@@ -478,23 +525,6 @@ func (c *Client) UploadFile(localPath, remotePath string, mode os.FileMode) erro
 		return err
 	}
 
-	return nil
-}
-
-// CreateSymlink recreates a symlink on the remote server, pointing linkPath at
-// target verbatim (the target is stored as-is, not resolved locally). Parent
-// directories are created as needed. -sfn forces replacement and never
-// dereferences an existing symlink-to-directory, so a re-pointed link is
-// replaced rather than created inside the old target.
-func (c *Client) CreateSymlink(target, linkPath string) error {
-	remoteDir := filepath.Dir(linkPath)
-	if _, err := c.RunCommand(fmt.Sprintf("mkdir -p %s", Quote(remoteDir))); err != nil {
-		return fmt.Errorf("failed to create remote directory: %w", err)
-	}
-
-	if _, err := c.RunCommand(fmt.Sprintf("ln -sfn -- %s %s", Quote(target), Quote(linkPath))); err != nil {
-		return fmt.Errorf("failed to create symlink %s: %w", linkPath, err)
-	}
 	return nil
 }
 

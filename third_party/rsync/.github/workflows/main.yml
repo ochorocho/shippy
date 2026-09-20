@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  staticcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dominikh/staticcheck-action@v1
+
+  tests:
+    strategy:
+      matrix:
+        os:
+        - macos-latest
+        - ubuntu-latest
+        - windows-latest
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-go@v5
+      with:
+        # Latest stable version of Go, e.g. 1.20.2
+        go-version: 'stable'
+
+    - name: Ensure all files were formatted as per gofmt
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        [ "$(gofmt -l $(find . -name '*.go') 2>&1)" = "" ]
+
+    - name: install rsync
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        docker build --pull --no-cache --rm -t=rsync-debian -f testdata/ci-debian.Dockerfile .
+        docker build --pull --no-cache --rm -t=rsync-fedora -f testdata/ci-fedora.Dockerfile .
+
+    - name: install rsync
+      if: matrix.os == 'windows-latest'
+      run: choco install rsync
+
+    - name: run tests (linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        go test -v ./...
+        echo "::group::rsync from Debian"
+        docker run -v $PWD:/usr/src/rsync/ -w /usr/src/rsync rsync-debian go test ./...
+        echo "::endgroup::"
+        echo "::group::rsync from Fedora"
+        docker run -v $PWD:/usr/src/rsync/ -w /usr/src/rsync rsync-fedora go test ./...
+        echo "::endgroup::"
+
+    - name: run tests (macos)
+      if: matrix.os == 'macos-latest'
+      run: sudo go test -v ./...
+
+    - name: run tests (windows)
+      if: matrix.os == 'windows-latest'
+      run: go test -v ./...

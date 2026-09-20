@@ -257,9 +257,6 @@ func TestScanSymlinks(t *testing.T) {
 	if link.LinkTarget != "../../vendor/typo3/cms-core/Resources/Public" {
 		t.Fatalf("symlink target not captured verbatim, got %q", link.LinkTarget)
 	}
-	if link.LinkTarget != "" && link.Checksum == "" {
-		t.Fatal("symlink must carry a checksum so retargeting is detected")
-	}
 	if _, ok := byPath["public/secret-link"]; ok {
 		t.Fatal("excluded symlink public/secret-link must not be shipped")
 	}
