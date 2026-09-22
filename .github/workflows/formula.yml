@@ -31,7 +31,7 @@ jobs:
       - name: Set up Homebrew
         # ubuntu-latest ships Homebrew but not on PATH; this puts `brew` on PATH
         # on both Linux and macOS runners.
-        uses: Homebrew/actions/setup-homebrew@master
+        uses: Homebrew/actions/setup-homebrew@main
 
       - name: Lint formula style
         run: brew style Formula/shippy.rb

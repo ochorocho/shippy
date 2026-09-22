@@ -264,7 +264,7 @@ jobs:
       - name: Set up Homebrew
         # ubuntu-latest ships Homebrew but not on PATH; this puts `brew` on PATH
         # on both Linux and macOS runners.
-        uses: Homebrew/actions/setup-homebrew@master
+        uses: Homebrew/actions/setup-homebrew@main
 
       - name: Tap shippy
         run: brew tap ochorocho/shippy https://github.com/ochorocho/shippy
