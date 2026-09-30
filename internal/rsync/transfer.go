@@ -31,17 +31,22 @@ type Syncer struct {
 	verbose    bool
 	deployPath string // base deploy path (holds .cache/ and .shippy/)
 	sourceDir  string // local source root the scanned RelPaths are relative to
+	fileMode   string // octal mode applied to deployed files (e.g. "0644")
+	dirMode    string // octal mode applied to deployed directories (e.g. "2755")
 }
 
 // NewSyncer creates a new file syncer. sourceDir is the local directory the
-// scanned files are relative to (config rsync_src).
-func NewSyncer(client remoteClient, remotePath string, verbose bool, deployPath, sourceDir string) *Syncer {
+// scanned files are relative to (config rsync_src). fileMode/dirMode are octal
+// strings that normalize the deployed file/directory modes on the remote.
+func NewSyncer(client remoteClient, remotePath string, verbose bool, deployPath, sourceDir, fileMode, dirMode string) *Syncer {
 	return &Syncer{
 		client:     client,
 		remotePath: remotePath,
 		verbose:    verbose,
 		deployPath: deployPath,
 		sourceDir:  sourceDir,
+		fileMode:   fileMode,
+		dirMode:    dirMode,
 	}
 }
 
@@ -92,12 +97,21 @@ func (s *Syncer) Sync(files []FileInfo) error {
 	// 2. Mirror cache -> release with the real remote rsync (into a fresh
 	// timestamped release directory).
 	out.Info("  Promoting cache to release directory...")
-	// --perms preserves the source file/directory modes into the release (the
-	// cache already holds the correct modes from the push). Without it, rsync
-	// would apply the remote umask and drop executable bits.
+	// Normalize modes into the release with --chmod (real remote rsync supports it;
+	// the gokr client on the push leg does not). Files get s.fileMode, directories
+	// s.dirMode; F+X additionally keeps the exec bit for files that carry it in the
+	// source (preserved into the cache by the push leg's --perms). This avoids
+	// copying loose source modes (e.g. 0777) onto the target. The directory setgid
+	// bit is realized via filesystem inheritance from the release tree, not --chmod.
+	// When both modes are empty (only used by tests on rsync builds without --chmod),
+	// fall back to --perms so the source modes are carried through unchanged.
+	modeArg := "--perms"
+	if s.fileMode != "" || s.dirMode != "" {
+		modeArg = fmt.Sprintf("--chmod=D%s,F%s,F+X", s.dirMode, s.fileMode)
+	}
 	promote := fmt.Sprintf(
-		"rsync -rlt --perms --delete %s/ %s/",
-		ssh.Quote(cachePath), ssh.Quote(s.remotePath),
+		"rsync -rlt %s --delete %s/ %s/",
+		ssh.Quote(modeArg), ssh.Quote(cachePath), ssh.Quote(s.remotePath),
 	)
 	if output, err := s.client.RunCommand(promote); err != nil {
 		return fmt.Errorf("failed to promote cache to release: %w (output: %s)", err, output)

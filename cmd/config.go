@@ -224,6 +224,8 @@ func buildResolvedHostConfig(cfg *config.Config, host *config.Host, hostName str
 	sb.WriteString(fmt.Sprintf("include: %s\n", formatStringSlice(cfg.GetInclude(host))))
 	sb.WriteString(fmt.Sprintf("shared: %s\n", formatStringSlice(cfg.GetShared(host))))
 	sb.WriteString(fmt.Sprintf("keep_releases: %d\n", cfg.GetKeepReleases(host)))
+	sb.WriteString(fmt.Sprintf("file_mode: %q\n", cfg.GetFileMode(host)))
+	sb.WriteString(fmt.Sprintf("dir_mode: %q\n", cfg.GetDirMode(host)))
 	sb.WriteString(fmt.Sprintf("lock_enabled: %t\n", cfg.IsLockEnabled(host)))
 	sb.WriteString(fmt.Sprintf("lock_timeout: %d\n\n", cfg.GetLockTimeout(host)))
 

@@ -154,7 +154,7 @@ func (d *Deployer) Deploy() error {
 	// Step 4: Sync files to release
 	out.StepNumber(4, "Syncing files to release")
 
-	syncer := rsync.NewSyncer(client, releasePath, d.verbose, d.host.DeployPath, d.config.GetRsyncSrc(d.host))
+	syncer := rsync.NewSyncer(client, releasePath, d.verbose, d.host.DeployPath, d.config.GetRsyncSrc(d.host), d.config.GetFileMode(d.host), d.config.GetDirMode(d.host))
 	if err := syncer.Sync(files); err != nil {
 		return fmt.Errorf("sync failed: %w", err)
 	}

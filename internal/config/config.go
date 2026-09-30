@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -21,8 +22,12 @@ type Config struct {
 	Include      []string `yaml:"include,omitempty"`
 	Shared       []string `yaml:"shared,omitempty"`
 	KeepReleases int      `yaml:"keep_releases,omitempty"`
-	LockEnabled  *bool    `yaml:"lock_enabled,omitempty"`
-	LockTimeout  int      `yaml:"lock_timeout,omitempty"`
+	// FileMode/DirMode are octal strings (e.g. "0644", "2755") applied to deployed
+	// files/directories. Quoted strings avoid YAML parsing "0644" as decimal.
+	FileMode    string `yaml:"file_mode,omitempty"`
+	DirMode     string `yaml:"dir_mode,omitempty"`
+	LockEnabled *bool  `yaml:"lock_enabled,omitempty"`
+	LockTimeout int    `yaml:"lock_timeout,omitempty"`
 
 	// CommandContext wraps every post-deploy/rollback command so it runs inside
 	// a subcontext (e.g. a container). When set, commands are executed as
@@ -56,6 +61,8 @@ type Host struct {
 	Include         []string          `yaml:"include,omitempty"`
 	Shared          []string          `yaml:"shared,omitempty"`
 	KeepReleases    int               `yaml:"keep_releases,omitempty"`
+	FileMode        string            `yaml:"file_mode,omitempty"`       // Octal mode for deployed files (e.g. "0644")
+	DirMode         string            `yaml:"dir_mode,omitempty"`        // Octal mode for deployed directories (e.g. "2755")
 	LockEnabled     *bool             `yaml:"lock_enabled,omitempty"`    // Pointer to distinguish unset from false
 	LockTimeout     int               `yaml:"lock_timeout,omitempty"`    // Timeout in minutes
 	Backup          *BackupConfig     `yaml:"backup,omitempty"`          // Per-host backup override
@@ -132,6 +139,18 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	// Global mode overrides must be valid octal (empty = use default).
+	if c.FileMode != "" {
+		if _, err := ParseMode(c.FileMode); err != nil {
+			return fmt.Errorf("file_mode: %w", err)
+		}
+	}
+	if c.DirMode != "" {
+		if _, err := ParseMode(c.DirMode); err != nil {
+			return fmt.Errorf("dir_mode: %w", err)
+		}
+	}
+
 	for name, host := range c.Hosts {
 		if host.Hostname == "" {
 			return fmt.Errorf("host '%s': hostname is required", name)
@@ -166,6 +185,16 @@ func (c *Config) Validate() error {
 		for i, shared := range host.Shared {
 			if err := validateShellSafe(shared, fmt.Sprintf("host '%s': shared[%d]", name, i)); err != nil {
 				return err
+			}
+		}
+		if host.FileMode != "" {
+			if _, err := ParseMode(host.FileMode); err != nil {
+				return fmt.Errorf("host '%s': file_mode: %w", name, err)
+			}
+		}
+		if host.DirMode != "" {
+			if _, err := ParseMode(host.DirMode); err != nil {
+				return fmt.Errorf("host '%s': dir_mode: %w", name, err)
 			}
 		}
 	}
@@ -296,6 +325,39 @@ func (c *Config) GetKeepReleases(host *Host) int {
 	return DefaultKeepReleases // Default
 }
 
+// GetFileMode returns the octal file-mode string (per-host override, global, or default).
+func (c *Config) GetFileMode(host *Host) string {
+	if host.FileMode != "" {
+		return host.FileMode // Per-host override
+	}
+	if c.FileMode != "" {
+		return c.FileMode // Global setting
+	}
+	return DefaultFileMode // Default
+}
+
+// GetDirMode returns the octal directory-mode string (per-host override, global, or default).
+func (c *Config) GetDirMode(host *Host) string {
+	if host.DirMode != "" {
+		return host.DirMode // Per-host override
+	}
+	if c.DirMode != "" {
+		return c.DirMode // Global setting
+	}
+	return DefaultDirMode // Default
+}
+
+// ParseMode validates and parses an octal mode string (e.g. "0644", "2755").
+// It returns a clear error rather than letting an invalid value silently apply a
+// wrong mode on the remote.
+func ParseMode(mode string) (int64, error) {
+	m, err := strconv.ParseInt(mode, 8, 32)
+	if err != nil || m < 0 {
+		return 0, fmt.Errorf("invalid octal mode %q: expected e.g. \"0644\" or \"2755\"", mode)
+	}
+	return m, nil
+}
+
 // GetCommandContext resolves the command context for a single command using
 // precedence: per-command override > per-host > global. A per-command context
 // of "" (non-nil) explicitly forces execution on the host; nil inherits.
@@ -339,6 +401,12 @@ func (c *Config) ApplyDefaults() {
 	}
 	if c.KeepReleases == 0 {
 		c.KeepReleases = DefaultKeepReleases
+	}
+	if c.FileMode == "" {
+		c.FileMode = DefaultFileMode
+	}
+	if c.DirMode == "" {
+		c.DirMode = DefaultDirMode
 	}
 	if c.LockEnabled == nil {
 		enabled := true
