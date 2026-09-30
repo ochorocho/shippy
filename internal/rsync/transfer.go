@@ -92,8 +92,11 @@ func (s *Syncer) Sync(files []FileInfo) error {
 	// 2. Mirror cache -> release with the real remote rsync (into a fresh
 	// timestamped release directory).
 	out.Info("  Promoting cache to release directory...")
+	// --perms preserves the source file/directory modes into the release (the
+	// cache already holds the correct modes from the push). Without it, rsync
+	// would apply the remote umask and drop executable bits.
 	promote := fmt.Sprintf(
-		"rsync -rlt --no-perms --delete %s/ %s/",
+		"rsync -rlt --perms --delete %s/ %s/",
 		ssh.Quote(cachePath), ssh.Quote(s.remotePath),
 	)
 	if output, err := s.client.RunCommand(promote); err != nil {
@@ -119,8 +122,11 @@ func (s *Syncer) pushToCache(cachePath, listFile string, totalFiles int, out *ui
 	if s.verbose {
 		clientStderr = nopWriteCloser{os.Stderr}
 	}
+	// --perms forwards -p to the remote rsync receiver so it applies the source
+	// modes (which the sender always transmits) into .cache/ instead of using the
+	// remote umask.
 	client, err := rsyncclient.New([]string{
-		"-rlt", "--no-perms", "--delete", "--info=name1",
+		"-rlt", "--perms", "--delete", "--info=name1",
 		"--files-from=" + listFile, "--from0",
 	}, rsyncclient.WithSender(), rsyncclient.WithStdout(progress), rsyncclient.WithStderr(clientStderr))
 	if err != nil {
