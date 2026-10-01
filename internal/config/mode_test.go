@@ -90,3 +90,22 @@ func TestValidateRejectsBadMode(t *testing.T) {
 		t.Error("Validate() should reject an invalid file_mode")
 	}
 }
+
+// TestDefaultModesAreGroupWritable guards the #44 defaults: the web-server group
+// (e.g. www-data) must be able to write, and directories must carry setgid.
+func TestDefaultModesAreGroupWritable(t *testing.T) {
+	if DefaultFileMode != "0664" {
+		t.Errorf("DefaultFileMode = %q, want 0664", DefaultFileMode)
+	}
+	if DefaultDirMode != "2775" {
+		t.Errorf("DefaultDirMode = %q, want 2775", DefaultDirMode)
+	}
+	f, err := ParseMode(DefaultFileMode)
+	if err != nil || f&0o020 == 0 {
+		t.Errorf("DefaultFileMode %q not group-writable (err=%v)", DefaultFileMode, err)
+	}
+	d, err := ParseMode(DefaultDirMode)
+	if err != nil || d&0o020 == 0 || d&0o2000 == 0 {
+		t.Errorf("DefaultDirMode %q not group-writable+setgid (err=%v)", DefaultDirMode, err)
+	}
+}

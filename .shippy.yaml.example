@@ -28,11 +28,12 @@ hosts:
 
     # Modes applied to deployed files/directories on the target (octal, quoted so
     # YAML does not read them as decimal). Files get file_mode, directories get
-    # dir_mode; scripts that are executable in the source keep their exec bit.
-    # dir_mode's setgid bit (2xxx) is realized via the release tree's group
-    # inheritance. Defaults: file_mode "0644", dir_mode "2755".
-    file_mode: "0644"
-    dir_mode: "2755"
+    # dir_mode; scripts that are executable in the source keep their exec bit. The
+    # defaults are group-writable so the web-server group (e.g. www-data) can write;
+    # dir_mode's setgid bit (2xxx) plus group inheritance come from a setgid deploy
+    # tree ($siteroot). Defaults: file_mode "0664", dir_mode "2775".
+    file_mode: "0664"
+    dir_mode: "2775"
 
     # File selection is DENY-BY-DEFAULT (an allowlist): nothing is deployed
     # unless it is listed under 'include:' below. A directory entry ships that

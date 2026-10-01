@@ -50,6 +50,21 @@ func NewSyncer(client remoteClient, remotePath string, verbose bool, deployPath,
 	}
 }
 
+// chmodArg returns the rsync --chmod spec that normalizes deployed modes:
+// directories to s.dirMode, files to s.fileMode, plus F+X to keep the exec bit
+// for files that carry it in the source. It returns "" when both modes are unset
+// (tests on rsync builds without --chmod), so callers fall back to plain --perms.
+// The setgid "s" flag and the group are NOT set here; --chmod sets the base bits
+// and both are realized via filesystem inheritance from the setgid deploy tree
+// (.cache/ and releases/ created under a setgid $siteroot). Always pair it with
+// --perms so the remote umask does not strip the setgid/group-write bits.
+func (s *Syncer) chmodArg() string {
+	if s.fileMode == "" && s.dirMode == "" {
+		return ""
+	}
+	return fmt.Sprintf("--chmod=D%s,F%s,F+X", s.dirMode, s.fileMode)
+}
+
 // Sync transfers the scanned files to the release directory using rsync:
 //  1. rsync-push the exact file list into a persistent remote .cache/ (block
 //     delta over a single stream; unchanged files are skipped natively, and
@@ -97,21 +112,20 @@ func (s *Syncer) Sync(files []FileInfo) error {
 	// 2. Mirror cache -> release with the real remote rsync (into a fresh
 	// timestamped release directory).
 	out.Info("  Promoting cache to release directory...")
-	// Normalize modes into the release with --chmod (real remote rsync supports it;
-	// the gokr client on the push leg does not). Files get s.fileMode, directories
-	// s.dirMode; F+X additionally keeps the exec bit for files that carry it in the
-	// source (preserved into the cache by the push leg's --perms). This avoids
-	// copying loose source modes (e.g. 0777) onto the target. The directory setgid
-	// bit is realized via filesystem inheritance from the release tree, not --chmod.
-	// When both modes are empty (only used by tests on rsync builds without --chmod),
-	// fall back to --perms so the source modes are carried through unchanged.
+	// Normalize modes into the release. --chmod must be paired with --perms, or the
+	// remote umask strips the setgid/group-write bits (D2775->2755, F664->644). The
+	// real remote rsync applies --chmod (the gokr push client cannot); the setgid "s"
+	// flag and group come from inheritance off the setgid release parent, not --chmod.
+	// --perms + --chmod also re-normalizes modes on unchanged .cache entries, so a
+	// pre-fix .cache self-heals on the next deploy. When both modes are empty (tests
+	// on rsync builds without --chmod), fall back to plain --perms.
 	modeArg := "--perms"
-	if s.fileMode != "" || s.dirMode != "" {
-		modeArg = fmt.Sprintf("--chmod=D%s,F%s,F+X", s.dirMode, s.fileMode)
+	if c := s.chmodArg(); c != "" {
+		modeArg = "--perms " + ssh.Quote(c)
 	}
 	promote := fmt.Sprintf(
 		"rsync -rlt %s --delete %s/ %s/",
-		ssh.Quote(modeArg), ssh.Quote(cachePath), ssh.Quote(s.remotePath),
+		modeArg, ssh.Quote(cachePath), ssh.Quote(s.remotePath),
 	)
 	if output, err := s.client.RunCommand(promote); err != nil {
 		return fmt.Errorf("failed to promote cache to release: %w (output: %s)", err, output)
@@ -150,6 +164,17 @@ func (s *Syncer) pushToCache(cachePath, listFile string, totalFiles int, out *ui
 	// The remote receiver is the host's real rsync, invoked as a server with the
 	// options the client derives (the file list is sent in-band, not here).
 	serverArgs := client.ServerCommandOptions(cachePath)
+	// The gokr client cannot emit --chmod, so inject it into the server command
+	// directly (right after the leading --server). The remote's real rsync honors
+	// it, normalizing .cache modes exactly as the promote leg does for the release.
+	// Guarded on serverArgs[0]=="--server" so a vendored-option change can't misplace
+	// the flag ahead of the positional ". <path>" trailer. Empty modes => no inject.
+	if c := s.chmodArg(); c != "" && len(serverArgs) > 0 && serverArgs[0] == "--server" {
+		injected := make([]string, 0, len(serverArgs)+1)
+		injected = append(injected, serverArgs[0], c)
+		injected = append(injected, serverArgs[1:]...)
+		serverArgs = injected
+	}
 	quoted := make([]string, len(serverArgs))
 	for i, a := range serverArgs {
 		quoted[i] = ssh.Quote(a)
