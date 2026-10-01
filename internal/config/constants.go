@@ -9,13 +9,16 @@ const (
 	// This matches Capistrano's default behavior
 	DefaultLockTimeoutMinutes = 15
 
-	// DefaultFileMode is the octal mode applied to deployed files. The exec bit is
-	// additionally preserved for files that carry it in the source (see the rsync
-	// --chmod handling in internal/rsync).
-	DefaultFileMode = "0644"
+	// DefaultFileMode is the octal mode applied to deployed files. It is
+	// group-writable so a group member (e.g. PHP running as www-data) can modify
+	// deployed files; the exec bit is additionally preserved for files that carry it
+	// in the source (see the rsync --chmod handling in internal/rsync).
+	DefaultFileMode = "0664"
 
-	// DefaultDirMode is the octal mode applied to deployed directories. It includes
-	// the setgid bit (2xxx) so files created under a release inherit the group; the
-	// bit is realized via filesystem inheritance from the release tree.
-	DefaultDirMode = "2755"
+	// DefaultDirMode is the octal mode applied to deployed directories:
+	// group-writable with the setgid bit (2xxx) so new files inherit the parent
+	// group. --chmod sets the base 2775 bits; the actual setgid "s" flag and the
+	// group (e.g. www-data) are realized via filesystem inheritance from the setgid
+	// deploy tree (.cache/ and releases/ created under a setgid $siteroot).
+	DefaultDirMode = "2775"
 )

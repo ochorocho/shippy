@@ -6,8 +6,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 	"testing"
 
 	gokrsync "github.com/gokrazy/rsync"
@@ -217,7 +219,7 @@ func rsyncSupportsChmod(t *testing.T) bool {
 	dst := t.TempDir()
 	// A no-op transfer of an empty dir: succeeds on GNU rsync, errors ("invalid
 	// argument"/"unknown option") on openrsync.
-	err := exec.Command("rsync", "-rlt", "--chmod=D2755,F644,F+X",
+	err := exec.Command("rsync", "-rlt", "--perms", "--chmod=D2775,F664,F+X",
 		empty+"/", dst+"/").Run()
 	return err == nil
 }
@@ -253,23 +255,28 @@ func TestSyncNormalizesModes(t *testing.T) {
 		}
 	}
 
-	s := NewSyncer(&localRemote{}, release, false, deploy, src, "0644", "2755")
+	s := NewSyncer(&localRemote{}, release, false, deploy, src, "0664", "2775")
 
 	// First sync into a fresh release.
 	files, _ := scanFixture(t, src)
 	if err := s.Sync(files); err != nil {
 		t.Fatalf("first Sync: %v", err)
 	}
-	// Executable source file keeps the exec bit (F+X) at the normalized 0755.
-	assertMode("bin/run.sh", 0o755)
-	// Non-executable files are normalized to the configured file_mode, regardless
-	// of their loose source mode.
-	assertMode("config.php", 0o644)
-	assertMode("secret.env", 0o644)
-	// Directory base mode is normalized to dir_mode's base (0755). The setgid bit
-	// (2xxx) comes from filesystem inheritance in the real deploy tree, which the
-	// temp-dir release here does not have, so assert only the base permission bits.
-	assertMode("bin", 0o755)
+	// Executable source file keeps the exec bit (F+X) at the normalized 0775.
+	assertMode("bin/run.sh", 0o775)
+	// Non-executable files are normalized to the group-writable file_mode,
+	// regardless of their loose source mode.
+	assertMode("config.php", 0o664)
+	assertMode("secret.env", 0o664)
+	// Directories are normalized to dir_mode's base (0775). With --perms + --chmod
+	// the setgid bit is applied directly (no setgid parent needed here); the group
+	// it inherits is environment-dependent and covered by TestSyncInheritsSetgid.
+	assertMode("bin", 0o775)
+	if fi, err := os.Stat(filepath.Join(release, "bin")); err != nil {
+		t.Fatalf("stat bin: %v", err)
+	} else if fi.Mode()&os.ModeSetgid == 0 {
+		t.Errorf("bin missing setgid bit; mode=%v", fi.Mode())
+	}
 
 	// Re-sync with the cache already populated: normalized modes must still hold,
 	// not the loose source modes.
@@ -277,8 +284,122 @@ func TestSyncNormalizesModes(t *testing.T) {
 	if err := s.Sync(files); err != nil {
 		t.Fatalf("second Sync: %v", err)
 	}
-	assertMode("config.php", 0o644)
-	assertMode("bin/run.sh", 0o755)
+	assertMode("config.php", 0o664)
+	assertMode("bin/run.sh", 0o775)
+}
+
+// TestSyncNormalizesCacheModes verifies the PUSH leg normalizes the persistent
+// .cache directory and its contents (not just the promoted release), proving the
+// --chmod injection into the real-rsync server command works.
+func TestSyncNormalizesCacheModes(t *testing.T) {
+	if !rsyncSupportsChmod(t) {
+		t.Skip("rsync does not support --chmod (e.g. macOS openrsync); validated in CI on GNU rsync")
+	}
+
+	src := t.TempDir()
+	deploy := t.TempDir()
+	release := filepath.Join(deploy, "releases", "20240105120000")
+	cache := filepath.Join(deploy, ".cache")
+
+	writeFileMode(t, filepath.Join(src, "vendor/pkg/.gitignore"), "x", 0o666)
+	if err := os.Chmod(filepath.Join(src, "vendor"), 0o777); err != nil {
+		t.Fatal(err)
+	}
+
+	s := NewSyncer(&localRemote{}, release, false, deploy, src, "0664", "2775")
+	files, _ := scanFixture(t, src)
+	if err := s.Sync(files); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	// Cache dirs: group-writable base (0775) + setgid, not world-writable.
+	for _, rel := range []string{"vendor", "vendor/pkg"} {
+		fi, err := os.Stat(filepath.Join(cache, rel))
+		if err != nil {
+			t.Fatalf("stat .cache/%s: %v", rel, err)
+		}
+		if got := fi.Mode().Perm(); got != 0o775 {
+			t.Errorf(".cache/%s mode = %o, want 0775", rel, got)
+		}
+		if fi.Mode()&os.ModeSetgid == 0 {
+			t.Errorf(".cache/%s missing setgid bit; mode=%v", rel, fi.Mode())
+		}
+	}
+	// Cache file is group-writable (0664), not the loose 0666 source mode.
+	fi, err := os.Stat(filepath.Join(cache, "vendor/pkg/.gitignore"))
+	if err != nil {
+		t.Fatalf("stat .cache file: %v", err)
+	}
+	if got := fi.Mode().Perm(); got != 0o664 {
+		t.Errorf(".cache file mode = %o, want 0664", got)
+	}
+}
+
+// gidOf returns the group id of a path (Linux/Unix test helper).
+func gidOf(t *testing.T, path string) uint32 {
+	t.Helper()
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat %s: %v", path, err)
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		t.Fatalf("no syscall.Stat_t for %s", path)
+	}
+	return st.Gid
+}
+
+// TestSyncInheritsSetgidFromParent verifies that when the deploy tree carries the
+// setgid bit (mirroring a setgid $siteroot), the release directories inherit the
+// group and the setgid flag, and files are group-writable — the #44 requirement.
+// Setgid directory inheritance is a Linux filesystem behavior, so this is gated on
+// Linux (and on rsync --chmod support).
+func TestSyncInheritsSetgidFromParent(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("setgid directory inheritance is a Linux filesystem behavior")
+	}
+	if !rsyncSupportsChmod(t) {
+		t.Skip("rsync does not support --chmod")
+	}
+
+	src := t.TempDir()
+	deploy := t.TempDir()
+	// Make the deploy base setgid, mirroring a setgid $siteroot. MkdirAll masks the
+	// setgid bit, so set it explicitly with Chmod.
+	if err := os.Chmod(deploy, 0o2775); err != nil {
+		t.Fatal(err)
+	}
+	release := filepath.Join(deploy, "releases", "20240105120000")
+
+	writeFileMode(t, filepath.Join(src, "sub/app.php"), "x", 0o600)
+
+	s := NewSyncer(&localRemote{}, release, false, deploy, src, "0664", "2775")
+	files, _ := scanFixture(t, src)
+	if err := s.Sync(files); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	wantGid := gidOf(t, deploy)
+	for _, rel := range []string{".", "sub"} {
+		fi, err := os.Stat(filepath.Join(release, rel))
+		if err != nil {
+			t.Fatalf("stat %q: %v", rel, err)
+		}
+		if fi.Mode()&os.ModeSetgid == 0 {
+			t.Errorf("dir %q missing setgid; mode=%v", rel, fi.Mode())
+		}
+		if g := gidOf(t, filepath.Join(release, rel)); g != wantGid {
+			t.Errorf("dir %q gid=%d, want inherited %d", rel, g, wantGid)
+		}
+	}
+	// A file under the inherited tree must be group-writable (0664).
+	fi, err := os.Stat(filepath.Join(release, "sub/app.php"))
+	if err != nil {
+		t.Fatalf("stat file: %v", err)
+	}
+	if got := fi.Mode().Perm(); got != 0o664 {
+		t.Errorf("file mode = %o, want 0664", got)
+	}
 }
 
 func equalStrings(a, b []string) bool {
