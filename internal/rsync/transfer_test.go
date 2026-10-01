@@ -146,7 +146,10 @@ func TestSyncTransfersScannedSet(t *testing.T) {
 		}
 	}
 
-	s := NewSyncer(&localRemote{}, release, false, deploy, src)
+	// Empty modes: fall back to --perms so this set-oracle test runs on any rsync
+	// (including openrsync, which lacks --chmod). Mode normalization is covered by
+	// TestSyncNormalizesModes.
+	s := NewSyncer(&localRemote{}, release, false, deploy, src, "", "")
 	if err := s.Sync(files); err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
@@ -177,7 +180,7 @@ func TestSyncPrunesRemovedFiles(t *testing.T) {
 	writeFile(t, filepath.Join(src, "dir/gone.php"), "gone")
 
 	files, _ := scanFixture(t, src)
-	s := NewSyncer(&localRemote{}, release, false, deploy, src)
+	s := NewSyncer(&localRemote{}, release, false, deploy, src, "", "")
 	if err := s.Sync(files); err != nil {
 		t.Fatalf("first Sync: %v", err)
 	}
@@ -202,24 +205,40 @@ func TestSyncPrunesRemovedFiles(t *testing.T) {
 	}
 }
 
-// TestSyncPreservesFileModes verifies the deploy preserves source file and
-// directory modes end-to-end (both rsync legs: push to .cache and promote to the
-// release), including on a re-sync where only the source mode changed.
-func TestSyncPreservesFileModes(t *testing.T) {
+// rsyncSupportsChmod reports whether the local rsync understands --chmod. GNU
+// rsync does; macOS's openrsync does not, so mode-normalization tests skip there
+// (they are validated in CI on Linux/GNU rsync).
+func rsyncSupportsChmod(t *testing.T) bool {
+	t.Helper()
 	if _, err := exec.LookPath("rsync"); err != nil {
-		t.Skip("rsync not installed")
+		return false
+	}
+	empty := t.TempDir()
+	dst := t.TempDir()
+	// A no-op transfer of an empty dir: succeeds on GNU rsync, errors ("invalid
+	// argument"/"unknown option") on openrsync.
+	err := exec.Command("rsync", "-rlt", "--chmod=D2755,F644,F+X",
+		empty+"/", dst+"/").Run()
+	return err == nil
+}
+
+// TestSyncNormalizesModes verifies the promote leg normalizes deployed file and
+// directory modes to the configured file_mode/dir_mode (instead of copying loose
+// source modes), while keeping the exec bit for files that carry it in the source.
+func TestSyncNormalizesModes(t *testing.T) {
+	if !rsyncSupportsChmod(t) {
+		t.Skip("rsync does not support --chmod (e.g. macOS openrsync); validated in CI on GNU rsync")
 	}
 
 	src := t.TempDir()
 	deploy := t.TempDir()
 	release := filepath.Join(deploy, "releases", "20240105120000")
 
-	writeFileMode(t, filepath.Join(src, "bin/run.sh"), "#!/bin/sh\n", 0o755)
-	writeFileMode(t, filepath.Join(src, "config.php"), "config", 0o644)
+	// Loose source modes, mirroring the real-world report (#41).
+	writeFileMode(t, filepath.Join(src, "bin/run.sh"), "#!/bin/sh\n", 0o777)
+	writeFileMode(t, filepath.Join(src, "config.php"), "config", 0o666)
 	writeFileMode(t, filepath.Join(src, "secret.env"), "secret", 0o600)
-	// A non-default mode on a nested directory (rsync -p carries transmitted dir
-	// modes; the .cache/release roots are made by mkdir -p and are out of scope).
-	if err := os.Chmod(filepath.Join(src, "bin"), 0o750); err != nil {
+	if err := os.Chmod(filepath.Join(src, "bin"), 0o777); err != nil {
 		t.Fatal(err)
 	}
 
@@ -234,36 +253,32 @@ func TestSyncPreservesFileModes(t *testing.T) {
 		}
 	}
 
-	s := NewSyncer(&localRemote{}, release, false, deploy, src)
+	s := NewSyncer(&localRemote{}, release, false, deploy, src, "0644", "2755")
 
 	// First sync into a fresh release.
 	files, _ := scanFixture(t, src)
 	if err := s.Sync(files); err != nil {
 		t.Fatalf("first Sync: %v", err)
 	}
+	// Executable source file keeps the exec bit (F+X) at the normalized 0755.
 	assertMode("bin/run.sh", 0o755)
+	// Non-executable files are normalized to the configured file_mode, regardless
+	// of their loose source mode.
 	assertMode("config.php", 0o644)
-	assertMode("secret.env", 0o600)
-	assertMode("bin", 0o750)
+	assertMode("secret.env", 0o644)
+	// Directory base mode is normalized to dir_mode's base (0755). The setgid bit
+	// (2xxx) comes from filesystem inheritance in the real deploy tree, which the
+	// temp-dir release here does not have, so assert only the base permission bits.
+	assertMode("bin", 0o755)
 
-	// Re-sync with the cache already populated: modes must still be correct.
+	// Re-sync with the cache already populated: normalized modes must still hold,
+	// not the loose source modes.
 	files, _ = scanFixture(t, src)
 	if err := s.Sync(files); err != nil {
 		t.Fatalf("second Sync: %v", err)
 	}
 	assertMode("config.php", 0o644)
-
-	// Mode-change-only re-sync: change the source mode without touching content,
-	// re-deploy, and the release must reflect the new mode. This guards against a
-	// stale cache mode leaking through when size/mtime look unchanged.
-	if err := os.Chmod(filepath.Join(src, "config.php"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	files, _ = scanFixture(t, src)
-	if err := s.Sync(files); err != nil {
-		t.Fatalf("third Sync: %v", err)
-	}
-	assertMode("config.php", 0o600)
+	assertMode("bin/run.sh", 0o755)
 }
 
 func equalStrings(a, b []string) bool {
