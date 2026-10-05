@@ -179,5 +179,14 @@ hosts:
 #
 #   - name: Warmup caches
 #     run: ./vendor/bin/typo3 cache:warmup
+
+# Optional: Commands to run AFTER the "current" symlink is switched (executed
+# against the current/ path once the release is live). Use these for actions that
+# must happen post-activation, e.g. flushing PHP's opcache or leaving maintenance
+# mode. No defaults — nothing runs unless configured.
+#
+# commands_post_release:
+#   - name: Flush PHP opcache
+#     run: ./vendor/bin/typo3 cache:flush
 `)
 }

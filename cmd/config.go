@@ -148,6 +148,14 @@ func runValidate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	if len(cfg.CommandsPostRelease) > 0 {
+		fmt.Printf("Configured post-release commands (%d):\n", len(cfg.CommandsPostRelease))
+		for i, cmd := range cfg.CommandsPostRelease {
+			fmt.Printf("  %d. %s%s\n", i+1, cmd.Name, formatCommandScope(cmd))
+			fmt.Printf("     %s\n", cmd.Run)
+		}
+	}
+
 	return nil
 }
 
@@ -269,6 +277,20 @@ func buildResolvedHostConfig(cfg *config.Config, host *config.Host, hostName str
 		sb.WriteString("\n# Rollback Commands\n")
 		sb.WriteString("rollback_commands:\n")
 		for _, cmd := range cfg.RollbackCommands {
+			if !cmd.AppliesToHost(hostName) {
+				sb.WriteString(fmt.Sprintf("  # - %s (skipped: not enabled for %s)\n", cmd.Name, hostName))
+				continue
+			}
+			sb.WriteString(fmt.Sprintf("  - name: %s\n", cmd.Name))
+			sb.WriteString(fmt.Sprintf("    run: %s\n", cmd.Run))
+		}
+	}
+
+	// Post-release commands (only those enabled for this host via only/except)
+	if len(cfg.CommandsPostRelease) > 0 {
+		sb.WriteString("\n# Post-release Commands\n")
+		sb.WriteString("commands_post_release:\n")
+		for _, cmd := range cfg.CommandsPostRelease {
 			if !cmd.AppliesToHost(hostName) {
 				sb.WriteString(fmt.Sprintf("  # - %s (skipped: not enabled for %s)\n", cmd.Name, hostName))
 				continue

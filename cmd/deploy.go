@@ -22,9 +22,10 @@ The deployment process:
 2. Creates a new release directory with timestamp
 3. Syncs files to the release directory
 4. Creates symlinks for shared files/directories
-5. Updates the "current" symlink to the new release
-6. Executes post-deployment commands
-7. Cleans up old releases (keeps last N releases)
+5. Executes commands in the new release (before it goes live)
+6. Updates the "current" symlink to the new release (atomic switchover)
+7. Executes post-release commands against current/ (e.g. flush opcache)
+8. Cleans up old releases (keeps last N releases)
 
 Example:
   shippy deploy                  (interactive host selection)

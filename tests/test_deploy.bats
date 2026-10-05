@@ -77,9 +77,10 @@ teardown() {
   assert_output --partial "2. Creates a new release"
   assert_output --partial "3. Syncs files"
   assert_output --partial "4. Creates symlinks"
-  assert_output --partial "5. Updates the"
-  assert_output --partial "6. Executes post-deployment commands"
-  assert_output --partial "7. Cleans up old releases"
+  assert_output --partial "5. Executes commands in the new release"
+  assert_output --partial "6. Updates the"
+  assert_output --partial "7. Executes post-release commands"
+  assert_output --partial "8. Cleans up old releases"
 }
 
 @test "Should mention interactive selection in help" {

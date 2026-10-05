@@ -190,3 +190,13 @@ rollback_commands:
 
   - name: Warmup caches
     run: ./vendor/bin/typo3 cache:warmup
+
+# Optional: Commands to run AFTER the "current" symlink is switched to the new
+# release (i.e. once the release is live). Executed against the current/ path.
+# Use these for post-activation actions such as flushing PHP's opcache or leaving
+# maintenance mode. Like rollback_commands, these have no defaults — nothing runs
+# unless configured. They support the same command_context and only/except
+# filtering as "commands".
+commands_post_release:
+  - name: Flush PHP opcache
+    run: ./vendor/bin/typo3 cache:flush
