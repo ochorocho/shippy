@@ -269,3 +269,60 @@ EOF
 
   rm -f symlink-test.yaml
 }
+
+@test "Post-release commands run after activation against current/" {
+  set -eu -o pipefail
+
+  cd "$BATS_TEST_DIRNAME/config-test"
+
+  src="${BATS_TMPDIR}/shippy-postrelease-src"
+  rm -rf "$src"
+  mkdir -p "$src/app"
+  printf 'live\n' > "$src/app/index.txt"
+
+  # A commands_post_release entry writes a marker into the working directory,
+  # which must be current/ (the activated release) at post-release time. The
+  # pre-activation `commands` writes a different marker so we can tell them apart.
+  cat > postrelease-test.yaml <<EOF
+rsync_src: ${src}
+keep_releases: 2
+include:
+  - app/
+commands:
+  - name: pre marker
+    run: "pwd > pre_marker.txt"
+commands_post_release:
+  - name: post marker
+    run: "pwd > post_marker.txt"
+hosts:
+  production:
+    hostname: 127.0.0.1
+    port: 2424
+    remote_user: root
+    deploy_path: /var/www/html
+    ssh_key: ../ssh_keys/shippy_key
+    ssh_options:
+      StrictHostKeyChecking: accept-new
+EOF
+
+  run ${BIN} deploy production --config postrelease-test.yaml
+  assert_success
+  # The post-release step runs, and its banner appears after activation.
+  assert_output --partial "Executing post-release commands"
+  assert_output --partial "Release activated"
+
+  # The post-release marker exists in the live release and records the current/
+  # path as its working directory (proving it ran post-activation against current).
+  run docker compose -f "${BATS_TEST_DIRNAME}/docker-compose.yaml" exec -T typo3-shippy-apache \
+    cat /var/www/html/current/post_marker.txt
+  assert_success
+  assert_output --partial "/var/www/html/current"
+
+  # The pre-activation marker ran against the release directory, not current/.
+  run docker compose -f "${BATS_TEST_DIRNAME}/docker-compose.yaml" exec -T typo3-shippy-apache \
+    cat /var/www/html/current/pre_marker.txt
+  assert_success
+  assert_output --partial "/var/www/html/releases/"
+
+  rm -f postrelease-test.yaml
+}

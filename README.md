@@ -168,6 +168,18 @@ commands:
     run: ./vendor/bin/typo3 upgrade:run
 ```
 
+`commands_post_release` run **after** the atomic switchover, against the `current/`
+path (now the live release). Use them for actions that must happen once the release
+is live, such as flushing PHP's opcache or leaving maintenance mode. They have no
+defaults and support the same `command_context` and `only`/`except` scoping as
+`commands`:
+
+```yaml
+commands_post_release:
+  - name: Flush PHP opcache
+    run: ./vendor/bin/typo3 cache:flush
+```
+
 **Scoping a command to specific hosts:**
 
 By default a command runs for every host in `hosts:`. Use `only` / `except` (GitLab-CI style) to scope a single command instead of duplicating the whole command list per host:
@@ -832,9 +844,10 @@ When you run `shippy deploy <host>`, the following steps occur:
 5. **Create symlinks** - Links shared files/directories from `shared/` to the release
 6. **Execute commands** - Runs commands **in the new release directory** (e.g., cache flush, migrations)
 7. **Activate release** - Atomically updates `current` symlink to new release (site goes live)
-8. **Cleanup** - Removes old releases, keeps last N
+8. **Post-release commands** - Runs `commands_post_release` against `current/` (e.g., flush opcache, leave maintenance mode)
+9. **Cleanup** - Removes old releases, keeps last N
 
-**Important:** Commands execute in the new release directory **before** it goes live. This ensures all preparation (cache warming, migrations, etc.) completes successfully before the atomic switchover. The site only becomes live when the `current` symlink is updated in step 7.
+**Important:** `commands` execute in the new release directory **before** it goes live. This ensures all preparation (cache warming, migrations, etc.) completes successfully before the atomic switchover. The site only becomes live when the `current` symlink is updated in step 7. Any `commands_post_release` then run against the now-live `current/` path.
 
 ## Example Configuration
 

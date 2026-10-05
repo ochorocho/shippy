@@ -136,6 +136,29 @@ func (c *Config) ProcessTemplates(comp *composer.Composer) error {
 		}
 	}
 
+	// Process post-release commands
+	for i, cmd := range c.CommandsPostRelease {
+		var err error
+
+		c.CommandsPostRelease[i].Name, err = replaceTemplateVars(cmd.Name, comp)
+		if err != nil {
+			return fmt.Errorf("commands_post_release[%d].name: %w", i, err)
+		}
+
+		c.CommandsPostRelease[i].Run, err = replaceTemplateVars(cmd.Run, comp)
+		if err != nil {
+			return fmt.Errorf("commands_post_release[%d].run: %w", i, err)
+		}
+
+		if cmd.CommandContext != nil {
+			processed, err := replaceTemplateVars(*cmd.CommandContext, comp)
+			if err != nil {
+				return fmt.Errorf("commands_post_release[%d].command_context: %w", i, err)
+			}
+			c.CommandsPostRelease[i].CommandContext = &processed
+		}
+	}
+
 	return nil
 }
 

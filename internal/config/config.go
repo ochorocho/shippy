@@ -42,6 +42,10 @@ type Config struct {
 	Hosts            map[string]Host `yaml:"hosts"`
 	Commands         []Command       `yaml:"commands"`
 	RollbackCommands []Command       `yaml:"rollback_commands,omitempty"`
+	// CommandsPostRelease run AFTER the atomic "current" symlink switch (e.g. flush
+	// PHP opcache, leave maintenance mode), against the current/ path. Empty by
+	// default. Same per-command context + only/except filtering as Commands.
+	CommandsPostRelease []Command `yaml:"commands_post_release,omitempty"`
 
 	// Internal: path to config file (used for resolving relative paths)
 	configPath string
@@ -219,6 +223,16 @@ func (c *Config) Validate() error {
 			}
 		}
 		if err := c.validateCommandHostRefs(cmd, fmt.Sprintf("rollback_commands[%d]", i)); err != nil {
+			return err
+		}
+	}
+	for i, cmd := range c.CommandsPostRelease {
+		if cmd.CommandContext != nil {
+			if err := validateShellSafe(*cmd.CommandContext, fmt.Sprintf("commands_post_release[%d]: command_context", i)); err != nil {
+				return err
+			}
+		}
+		if err := c.validateCommandHostRefs(cmd, fmt.Sprintf("commands_post_release[%d]", i)); err != nil {
 			return err
 		}
 	}

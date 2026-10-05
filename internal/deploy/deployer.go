@@ -217,8 +217,37 @@ func (d *Deployer) Deploy() error {
 
 	out.Success("Release activated - site is now live!")
 
-	// Step 8: Cleanup old releases
-	out.StepNumber(8, "Cleaning up old releases")
+	// Step 8: Execute post-release commands (after activation, e.g. flush opcache,
+	// leave maintenance mode). Run against the current/ symlink, which now points at
+	// the just-activated release.
+	if len(d.config.CommandsPostRelease) > 0 {
+		out.StepNumber(8, "Executing post-release commands")
+
+		executor := ssh.NewExecutor(client)
+		currentPath := filepath.Join(d.host.DeployPath, "current")
+
+		var commands []ssh.Command
+		for _, cmd := range d.config.CommandsPostRelease {
+			if !cmd.AppliesToHost(d.hostName) {
+				out.Info("  Skipping %s (not enabled for %s)", cmd.Name, d.hostName)
+				continue
+			}
+			commands = append(commands, ssh.Command{
+				Name:    cmd.Name,
+				Run:     cmd.Run,
+				Context: d.config.GetCommandContext(d.host, cmd),
+			})
+		}
+
+		if len(commands) > 0 {
+			if err := executor.Execute(commands, currentPath); err != nil {
+				return fmt.Errorf("post-release command execution failed: %w", err)
+			}
+		}
+	}
+
+	// Step 9: Cleanup old releases
+	out.StepNumber(9, "Cleaning up old releases")
 
 	keepReleases := d.config.GetKeepReleases(d.host)
 
@@ -285,6 +314,15 @@ func (d *Deployer) DryRun() error {
 	if len(d.config.Commands) > 0 {
 		out.StepNumber(3, "Commands to execute (%d)", len(d.config.Commands))
 		for _, cmd := range d.config.Commands {
+			out.Println("  %s", cmd.Name)
+			out.Info("    $ %s", cmd.Run)
+		}
+	}
+
+	// Post-release commands that would run after activation
+	if len(d.config.CommandsPostRelease) > 0 {
+		out.StepNumber(4, "Post-release commands to execute (%d)", len(d.config.CommandsPostRelease))
+		for _, cmd := range d.config.CommandsPostRelease {
 			out.Println("  %s", cmd.Name)
 			out.Info("    $ %s", cmd.Run)
 		}
