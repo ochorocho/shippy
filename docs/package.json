@@ -1,0 +1,15 @@
+{
+  "name": "shippy-docs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Website and documentation for Shippy, published to https://shippy.run/",
+  "type": "module",
+  "scripts": {
+    "docs:dev": "vitepress dev .",
+    "docs:build": "vitepress build .",
+    "docs:preview": "vitepress preview ."
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.4"
+  }
+}

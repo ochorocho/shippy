@@ -14,6 +14,8 @@ make build-release    # Cross-compile for darwin/linux (amd64/arm64)
 make test             # Run BATS integration tests: bats tests/*.bats
 make clean            # Remove dist/
 make version          # Show version that would be built
+make docs-dev         # Serve the VitePress docs locally (docs/)
+make docs-build       # Build the docs → docs/.vitepress/dist (fails on dead links)
 
 # Run a single test file
 bats tests/test_deploy.bats
@@ -43,6 +45,12 @@ internal/
 ```
 
 **Key flow:** Config YAML → `Deployer.Deploy()` → scan files → SSH connect → create release dir → sync files → symlink shared → run commands → activate (atomic symlink) → cleanup old releases.
+
+## Documentation
+
+- `docs/` holds the VitePress site published to https://shippy.run/ via GitHub Pages (`.github/workflows/docs.yml`)
+- Pages mirror README.md; update both when behaviour or config options change
+- `docs/README.md` explains the site layout and the Pages/custom-domain setup
 
 ## Configuration
 
