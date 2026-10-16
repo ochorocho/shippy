@@ -1,0 +1,15 @@
+{
+  "name": "shippy-website",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Marketing site and documentation for Shippy, the deployment tool for Composer-based PHP projects",
+  "type": "module",
+  "scripts": {
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.4"
+  }
+}

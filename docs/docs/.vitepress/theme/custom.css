@@ -1,0 +1,136 @@
+/**
+ * Shippy brand palette.
+ * Colours are taken from images/logo.svg in the shippy repository:
+ *   #FF8700  sail orange   (primary)
+ *   #1A2332  hull navy     (dark surfaces)
+ *   #3498db  water blue    (accent)
+ *   #ECEFF1  deck white
+ */
+
+:root {
+  --shippy-orange: #ff8700;
+  --shippy-orange-dark: #b35e00;
+  --shippy-orange-light: #ffa033;
+  --shippy-navy: #1a2332;
+  --shippy-blue: #3498db;
+  --shippy-blue-dark: #2980b9;
+
+  /* Feature icons (inline SVG in docs/index.md). The ink flips with the theme, the same
+     way the logo's white hull sits on its navy disc; the orange accent stays put. */
+  --shippy-icon-ink: var(--shippy-navy);
+  --shippy-icon-chip: rgba(26, 35, 50, 0.06);
+
+  /* Brand ramp. -1 is used for text/links, so it must clear contrast on the page background. */
+  --vp-c-brand-1: var(--shippy-orange-dark);
+  --vp-c-brand-2: #9a5000;
+  --vp-c-brand-3: var(--shippy-orange);
+  --vp-c-brand-soft: rgba(255, 135, 0, 0.14);
+
+  /* Orange is too light to carry white text; use the hull navy instead. */
+  --vp-button-brand-bg: var(--shippy-orange);
+  --vp-button-brand-text: var(--shippy-navy);
+  --vp-button-brand-border: transparent;
+  --vp-button-brand-hover-bg: var(--shippy-orange-light);
+  --vp-button-brand-hover-text: var(--shippy-navy);
+  --vp-button-brand-hover-border: transparent;
+  --vp-button-brand-active-bg: #e67a00;
+  --vp-button-brand-active-text: var(--shippy-navy);
+  --vp-button-brand-active-border: transparent;
+
+  --vp-home-hero-name-color: transparent;
+  /* Orange and blue are complementary, so blending them across short text goes muddy —
+     stay inside the warm half of the palette and let the blue live in the hero glow instead. */
+  --vp-home-hero-name-background: linear-gradient(
+    115deg,
+    #ffb347 5%,
+    var(--shippy-orange) 45%,
+    #e2620a 100%
+  );
+  --vp-home-hero-image-background-image: linear-gradient(
+    -45deg,
+    rgba(255, 135, 0, 0.55) 40%,
+    rgba(52, 152, 219, 0.55) 100%
+  );
+  --vp-home-hero-image-filter: blur(46px);
+}
+
+.dark {
+  /* Backgrounds drift towards the hull navy of the logo. */
+  --vp-c-bg: #131a24;
+  --vp-c-bg-alt: #0e141c;
+  --vp-c-bg-elv: var(--shippy-navy);
+  --vp-c-bg-soft: #1a2332;
+
+  --vp-c-brand-1: #ffa749;
+  --vp-c-brand-2: var(--shippy-orange);
+  --vp-c-brand-3: var(--shippy-orange);
+  --vp-c-brand-soft: rgba(255, 135, 0, 0.18);
+
+  --shippy-icon-ink: #eceff1;
+  --shippy-icon-chip: rgba(236, 239, 241, 0.08);
+}
+
+@media (min-width: 640px) {
+  :root {
+    --vp-home-hero-image-filter: blur(56px);
+  }
+}
+
+@media (min-width: 960px) {
+  :root {
+    --vp-home-hero-image-filter: blur(68px);
+  }
+}
+
+/* The logo is a dark navy badge; a light halo keeps it readable on the dark theme. */
+.dark .VPImage.image-src {
+  filter: drop-shadow(0 0 1px rgba(236, 239, 241, 0.55));
+}
+
+/* Home page: give the free-form markdown below the hero the same rhythm as a doc page. */
+.VPHome .vp-doc {
+  max-width: 1152px;
+  margin: 0 auto;
+  padding: 0 24px 64px;
+}
+
+@media (min-width: 640px) {
+  .VPHome .vp-doc {
+    padding: 0 48px 80px;
+  }
+}
+
+@media (min-width: 960px) {
+  .VPHome .vp-doc {
+    padding: 0 64px 96px;
+  }
+}
+
+.VPHome .vp-doc > h2 {
+  margin-top: 56px;
+  padding-top: 0;
+  border-top: none;
+  font-size: 26px;
+  letter-spacing: -0.4px;
+}
+
+.VPHome .vp-doc > h2 + p {
+  color: var(--vp-c-text-2);
+}
+
+/* Wide code blocks (YAML samples, directory trees) scroll instead of pushing the page. */
+.vp-doc div[class*='language-'] pre {
+  overflow-x: auto;
+}
+
+/* Feature cards: the icons carry the orange themselves, so the chip behind them stays a
+   neutral navy tint — an orange chip would flatten the accent inside the icon. */
+.VPFeature .icon {
+  background-color: var(--shippy-icon-chip);
+}
+
+.VPFeature .icon svg {
+  display: block;
+  width: 28px;
+  height: 28px;
+}
