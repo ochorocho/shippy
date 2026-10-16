@@ -5,6 +5,8 @@ based PHP projects, inspired by Deployer and Capistrano.
 
 ![Shippy](images/logo.svg)
 
+**Documentation:** <https://shippy.run/> (sources in [`docs/`](docs/))
+
 ## Features
 
 - **Zero-downtime deployments** with atomic releases
@@ -1068,6 +1070,7 @@ shippy/
 │   └── shippy.rb        # Homebrew formula (prebuilt binary, per arch)
 ├── scripts/
 │   └── update-formula.sh # Bumps formula version + per-arch sha256 for a tag
+├── docs/                # VitePress website + documentation (https://shippy.run/)
 ├── main.go
 ├── go.mod
 └── README.md
@@ -1104,6 +1107,12 @@ Test SSH Connection
 ```bash
 ssh -i tests/ssh_keys/shippy_key root@127.0.0.1 -p 2424
 ```
+
+## Documentation
+
+The website at <https://shippy.run/> is built from [`docs/`](docs/) with VitePress and published
+to GitHub Pages on every push to `main` that touches it. Preview it locally with `make docs-dev`.
+When you change behaviour or options, update the matching page in `docs/` in the same pull request.
 
 ## License
 

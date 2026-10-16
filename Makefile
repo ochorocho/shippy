@@ -1,4 +1,4 @@
-.PHONY: help build build-release test test-integration docker-test clean version brew-formula audit
+.PHONY: help build build-release test test-integration docker-test clean version brew-formula audit docs-install docs-dev docs-build
 
 # Don't forward an inherited GOROOT to the go tools. Every go binary already
 # knows its own root; a stale/foreign GOROOT (e.g. exported by a version
@@ -60,6 +60,15 @@ audit: ## Run security audit (vet, race, govulncheck, gosec)
 
 brew-formula: ## Update Homebrew formula (Formula/shippy.rb) for the latest tag
 	@./scripts/update-formula.sh
+
+docs-install: ## Install documentation dependencies (docs/node_modules)
+	@cd docs && npm ci
+
+docs-dev: docs-install ## Serve the documentation locally with live reload
+	@cd docs && npm run docs:dev
+
+docs-build: docs-install ## Build the documentation site into docs/.vitepress/dist
+	@cd docs && npm run docs:build
 
 version: ## Show version that would be built
 	@echo "Version: $(VERSION)"

@@ -1,13 +1,13 @@
 {
-  "name": "shippy-website",
+  "name": "shippy-docs",
   "version": "1.0.0",
   "private": true,
-  "description": "Marketing site and documentation for Shippy, the deployment tool for Composer-based PHP projects",
+  "description": "Website and documentation for Shippy, published to https://shippy.run/",
   "type": "module",
   "scripts": {
-    "docs:dev": "vitepress dev docs",
-    "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:dev": "vitepress dev .",
+    "docs:build": "vitepress build .",
+    "docs:preview": "vitepress preview ."
   },
   "devDependencies": {
     "vitepress": "^1.6.4"

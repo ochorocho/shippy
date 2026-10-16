@@ -41,3 +41,8 @@ tests/typo3-v14/*
 !tests/typo3-v14/config
 !tests/typo3-v14/composer.json
 !tests/typo3-v14/.shippy.yaml
+
+# Docs (VitePress)
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/

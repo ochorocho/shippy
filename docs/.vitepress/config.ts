@@ -8,6 +8,8 @@ export default defineConfig({
   title: 'Shippy',
   description: 'Zero-downtime deployments for Composer-based PHP projects.',
   base,
+  // docs/README.md documents the site itself and is not a page.
+  srcExclude: ['README.md'],
   cleanUrls: true,
   lastUpdated: true,
   sitemap: { hostname },
@@ -114,7 +116,7 @@ export default defineConfig({
     outline: { level: [2, 3], label: 'On this page' },
 
     editLink: {
-      pattern: 'https://github.com/ochorocho/shippy-website/edit/main/docs/:path',
+      pattern: 'https://github.com/ochorocho/shippy/edit/main/docs/:path',
       text: 'Edit this page on GitHub',
     },
 

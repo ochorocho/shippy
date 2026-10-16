@@ -1,15 +1,22 @@
-# shippy-website
+# Shippy documentation
 
-Marketing site and documentation for [Shippy](https://github.com/ochorocho/shippy), the deployment
-tool for Composer-based PHP projects.
+Source of the website and documentation published at <https://shippy.run/>.
 
-Built with [VitePress](https://vitepress.dev/). All content is Markdown under `docs/`.
+Built with [VitePress](https://vitepress.dev/). All content is Markdown in this directory. This
+README documents the site itself and is excluded from the build.
 
 ## Develop
 
+Run everything from the `docs/` directory, or use the Makefile targets from the repository root.
+
 ```bash
-npm install
+cd docs
+npm ci
 npm run docs:dev      # http://localhost:5173/
+```
+
+```bash
+make docs-dev         # same, from the repository root
 ```
 
 ## Build
@@ -17,9 +24,11 @@ npm run docs:dev      # http://localhost:5173/
 ```bash
 npm run docs:build    # output: docs/.vitepress/dist
 npm run docs:preview  # serve the build locally
+make docs-build       # from the repository root
 ```
 
-The build fails on dead internal links, so a green build is also a link check.
+The build fails on dead internal links, so a green build is also a link check. Pull requests that
+touch `docs/` run the build in CI.
 
 ## Structure
 
@@ -42,21 +51,20 @@ docs/
 │   ├── commands.md
 │   └── configuration.md
 ├── public/
-│   ├── logo.svg                 # from ochorocho/shippy, images/logo.svg
+│   ├── logo.svg                 # copy of images/logo.svg in the repository root
 │   └── CNAME                    # custom domain: shippy.run
 └── .vitepress/
     ├── config.ts                # nav, sidebar, SEO, search
     └── theme/                   # brand colours from the logo palette
 ```
 
-The documentation content mirrors the
-[README of ochorocho/shippy](https://github.com/ochorocho/shippy/blob/main/README.md), split into
-pages. When that README changes, update the corresponding page here.
+The documentation mirrors the [repository README](../README.md), split into pages. Change both in
+the same pull request when behaviour or options change.
 
 ## Deployment
 
-Pushing to `main` runs `.github/workflows/deploy.yml`, which builds the site and publishes it to
-GitHub Pages at <https://shippy.run/>.
+Pushing to `main` with changes under `docs/` runs `.github/workflows/docs.yml`, which builds the
+site and publishes it to GitHub Pages at <https://shippy.run/>.
 
 **Settings → Pages → Build and deployment → Source** must stay on **GitHub Actions**. Changing the
 custom domain in that screen silently resets the source back to *Deploy from a branch*, which
@@ -65,7 +73,3 @@ touching the domain.
 
 The domain is pinned in three places that have to agree: `docs/public/CNAME`, and `base` /
 `sitemap.hostname` in `docs/.vitepress/config.ts`.
-
-## License
-
-MIT, matching the upstream project.
