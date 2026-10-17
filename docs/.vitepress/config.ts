@@ -40,7 +40,7 @@ export default defineConfig({
       { text: 'Guide', link: '/guide/', activeMatch: '/guide/' },
       { text: 'Reference', link: '/reference/commands', activeMatch: '/reference/' },
       {
-        text: 'v0.2.4',
+        text: 'v0.2.5',
         items: [
           { text: 'Releases', link: `${repo}/releases` },
           { text: 'Changelog', link: `${repo}/releases/latest` },

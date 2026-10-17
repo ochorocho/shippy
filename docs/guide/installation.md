@@ -70,7 +70,7 @@ docker run --rm -v "$PWD:/app" -w /app ghcr.io/ochorocho/shippy:latest config va
 
 The image is published to both GitHub Container Registry (`ghcr.io/ochorocho/shippy`) and Docker Hub
 (`ochorocho/shippy`), for `linux/amd64` and `linux/arm64`, tagged `latest` and per version
-(`0.2.4`, `0.2`, `0`).
+(`0.2.5`, `0.2`, `0`).
 
 ::: tip GitLab CI
 Because the entrypoint is `shippy`, a CI runner that wants to execute ordinary shell commands in the
