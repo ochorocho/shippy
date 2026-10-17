@@ -12,11 +12,19 @@ import (
 var logoPNG []byte
 
 const (
-	logoW    = 48 // termimg width parameter
-	logoH    = 24 // termimg height parameter
-	logoCols = 24 // approximate character cells the image occupies
-	logoRows = 12 // approximate terminal rows the image occupies
+	logoCols = 24 // character cells the image occupies
+	logoRows = 12 // terminal rows the image occupies
 )
+
+// logoSize returns the termimg Width/Height for the given protocol so the
+// logo always covers logoCols x logoRows cells. Graphics protocols (Kitty,
+// iTerm2, Sixel) take cells; Halfblocks takes image pixels, 2x2 per cell.
+func logoSize(p termimg.Protocol) (w, h int) {
+	if p == termimg.Halfblocks {
+		return logoCols * 2, logoRows * 2
+	}
+	return logoCols, logoRows
+}
 
 // PrintLogo prints the embedded PNG logo with title text beside it
 func (o *Output) PrintLogo() {
@@ -25,7 +33,9 @@ func (o *Output) PrintLogo() {
 	if err != nil {
 		return
 	}
-	if err := img.Width(logoW).Height(logoH).Print(); err != nil {
+	protocol := termimg.DetectProtocol()
+	w, h := logoSize(protocol)
+	if err := img.Protocol(protocol).Width(w).Height(h).Print(); err != nil {
 		return
 	}
 
