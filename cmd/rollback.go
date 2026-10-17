@@ -16,8 +16,9 @@ var (
 )
 
 var rollbackCmd = &cobra.Command{
-	Use:   "rollback [host]",
-	Short: "Rollback to a previous release",
+	Use:     "rollback [host]",
+	Aliases: []string{"shit"},
+	Short:   "Rollback to a previous release",
 	Long: `Rollback to a previous release by switching the "current" symlink.
 
 Shows a list of available releases with deployment date/time, git commit hash,
@@ -32,7 +33,8 @@ Example:
   shippy rollback production -r 20260109120000  (specific release)
   shippy rollback production -n -1              (one version back)
   shippy rollback production -n +1              (one version forward)
-  shippy rollback production -n -2              (two versions back)`,
+  shippy rollback production -n -2              (two versions back)
+  shippy shit production -n -1                  ("shit" is an alias for "rollback")`,
 	Args:         cobra.MaximumNArgs(1),
 	RunE:         runRollback,
 	SilenceUsage: true,

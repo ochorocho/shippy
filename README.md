@@ -597,7 +597,10 @@ Create a new configuration file with TYPO3 defaults:
 
 ```bash
 shippy init
+shippy shipify             # alias for init
 ```
+
+`shippy shipify` is an alias and behaves exactly like `shippy init`, including all options.
 
 Options:
 - `--force` or `-f` - Overwrite existing configuration file
@@ -640,7 +643,10 @@ Rollback to a previous release:
 
 ```bash
 shippy rollback <hostname>
+shippy shit <hostname>     # alias for rollback
 ```
+
+`shippy shit <hostname>` is an alias and behaves exactly like `shippy rollback`, including all options.
 
 Options:
 - `--list` or `-l` - List available releases and exit

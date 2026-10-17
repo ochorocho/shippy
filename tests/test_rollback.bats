@@ -101,3 +101,22 @@ teardown() {
   assert_success
   assert_output --partial "Configured rollback commands"
 }
+
+@test "Should show rollback help for the shit alias" {
+  run -0 ${BIN} shit --help
+  assert_success
+  assert_output --partial "Rollback to a previous release"
+}
+
+@test "Should list shit as an alias in rollback help" {
+  run -0 ${BIN} rollback --help
+  assert_success
+  assert_output --partial "Aliases:"
+  assert_output --partial "rollback, shit"
+}
+
+@test "Should fail with shit when host does not exist in config" {
+  run -1 ${BIN} shit nonexistent --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
+  assert_failure
+  assert_output --partial "not found"
+}

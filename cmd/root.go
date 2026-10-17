@@ -16,9 +16,14 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:           "shippy",
-	Short:         "A TYPO3 deployment tool",
-	Long:          `Shippy is a minimal, opinionated deployment tool for Composer based PHP projects.`,
+	Use:   "shippy",
+	Short: "A TYPO3 deployment tool",
+	Long: `Shippy is a minimal, opinionated deployment tool for Composer based PHP projects.
+
+Command aliases:
+  ship     = deploy
+  shit     = rollback
+  shipify  = init`,
 	SilenceErrors: true, // Commands handle their own error display
 	Run: func(cmd *cobra.Command, args []string) {
 		if showVersion {

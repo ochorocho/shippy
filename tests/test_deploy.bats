@@ -146,7 +146,7 @@ teardown() {
   run -0 ${BIN} deploy --help
   assert_success
   assert_output --partial "Aliases:"
-  assert_output --partial "ship"
+  assert_output --partial "deploy, ship"
 }
 
 @test "Should fail with ship when host does not exist in config" {
