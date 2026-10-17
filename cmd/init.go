@@ -10,8 +10,9 @@ import (
 )
 
 var initCmd = &cobra.Command{
-	Use:   "init",
-	Short: "Initialize a new Shippy configuration file",
+	Use:     "init",
+	Aliases: []string{"shipify"},
+	Short:   "Initialize a new Shippy configuration file",
 	Long: `Initialize a new .shippy.yaml configuration file with sensible TYPO3 defaults.
 
 This command will:
@@ -21,7 +22,9 @@ This command will:
 - Prompt before overwriting existing configuration
 
 Example:
-  shippy init`,
+  shippy init
+  shippy init --force            (overwrite an existing .shippy.yaml)
+  shippy shipify                 ("shipify" is an alias for "init")`,
 	RunE: runInit,
 }
 

@@ -597,7 +597,10 @@ Create a new configuration file with TYPO3 defaults:
 
 ```bash
 shippy init
+shippy shipify             # alias for init
 ```
+
+`shippy shipify` is an alias and behaves exactly like `shippy init`, including all options.
 
 Options:
 - `--force` or `-f` - Overwrite existing configuration file
@@ -614,7 +617,10 @@ Deploy to a target host:
 
 ```bash
 shippy deploy <hostname>
+shippy ship <hostname>     # alias for deploy
 ```
+
+`shippy ship <hostname>` is an alias and behaves exactly like `shippy deploy`, including all options.
 
 Options:
 - `--dry-run` - Preview which files and commands would be deployed without connecting to the host
@@ -626,6 +632,7 @@ Example:
 shippy deploy staging
 shippy deploy production
 shippy deploy production --dry-run   # Preview files and commands, no connection
+shippy ship production               # Same as shippy deploy production
 ```
 
 When run without a host argument, an interactive host selector is shown.
@@ -636,7 +643,10 @@ Rollback to a previous release:
 
 ```bash
 shippy rollback <hostname>
+shippy shit <hostname>     # alias for rollback
 ```
+
+`shippy shit <hostname>` is an alias and behaves exactly like `shippy rollback`, including all options.
 
 Options:
 - `--list` or `-l` - List available releases and exit

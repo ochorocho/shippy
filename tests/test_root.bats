@@ -68,3 +68,11 @@ setup() {
   assert_failure
   assert_output --partial "failed to read config file"
 }
+
+@test "Should list command aliases in root help" {
+  run -0 ${BIN} --help
+  assert_success
+  assert_output --partial "ship     = deploy"
+  assert_output --partial "shit     = rollback"
+  assert_output --partial "shipify  = init"
+}

@@ -9,9 +9,9 @@ description: Every Shippy command — init, deploy, rollback, backup, unlock, gi
 
 | Command | Purpose |
 | --- | --- |
-| [`shippy init`](#initialize) | Create a `.shippy.yaml` with TYPO3 defaults |
-| [`shippy deploy <host>`](#deploy) | Deploy to a target host |
-| [`shippy rollback <host>`](#rollback) | Switch `current` to another release |
+| [`shippy init`](#initialize) | Create a `.shippy.yaml` with TYPO3 defaults (alias: `shippy shipify`) |
+| [`shippy deploy <host>`](#deploy) | Deploy to a target host (alias: `shippy ship`) |
+| [`shippy rollback <host>`](#rollback) | Switch `current` to another release (alias: `shippy shit`) |
 | [`shippy backup <host>`](#backup) | Download a database dump and shared files as a ZIP |
 | [`shippy gitlab:upload <file>`](#upload-to-gitlab) | Push a file to the GitLab package registry |
 | [`shippy config validate`](#validate-configuration) | Check the configuration file |
@@ -28,7 +28,10 @@ Create a new configuration file with TYPO3 defaults:
 
 ```bash
 shippy init
+shippy shipify             # alias for init
 ```
+
+`shippy shipify` is an alias and behaves exactly like `shippy init`, including all options.
 
 Options:
 
@@ -47,7 +50,10 @@ Deploy to a target host:
 
 ```bash
 shippy deploy <hostname>
+shippy ship <hostname>     # alias for deploy
 ```
+
+`shippy ship <hostname>` is an alias and behaves exactly like `shippy deploy`, including all options.
 
 Options:
 
@@ -61,6 +67,7 @@ Example:
 shippy deploy staging
 shippy deploy production
 shippy deploy production --dry-run   # Preview files and commands, no connection
+shippy ship production               # Same as shippy deploy production
 ```
 
 When run without a host argument, an interactive host selector is shown.
@@ -75,7 +82,10 @@ Rollback to a previous release:
 
 ```bash
 shippy rollback <hostname>
+shippy shit <hostname>     # alias for rollback
 ```
+
+`shippy shit <hostname>` is an alias and behaves exactly like `shippy rollback`, including all options.
 
 Options:
 

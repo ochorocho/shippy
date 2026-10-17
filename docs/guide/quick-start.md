@@ -98,6 +98,8 @@ Then ship it:
 
 ```bash
 shippy deploy production
+# or, with the alias:
+shippy ship production
 ```
 
 Shippy scans your files, creates a new timestamped release, syncs, links the shared paths, runs your

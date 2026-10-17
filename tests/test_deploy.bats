@@ -135,3 +135,29 @@ teardown() {
   assert_success
   assert_output --partial "public/css/main.css"
 }
+
+@test "Should show deploy help for the ship alias" {
+  run -0 ${BIN} ship --help
+  assert_success
+  assert_output --partial "Deploy your TYPO3 project to a target host defined in .shippy.yaml"
+}
+
+@test "Should list ship as an alias in deploy help" {
+  run -0 ${BIN} deploy --help
+  assert_success
+  assert_output --partial "Aliases:"
+  assert_output --partial "deploy, ship"
+}
+
+@test "Should fail with ship when host does not exist in config" {
+  run -1 ${BIN} ship nonexistent --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
+  assert_failure
+  assert_output --partial "not found"
+}
+
+@test "Should preview a deployment with ship --dry-run" {
+  run -0 ${BIN} ship production --dry-run --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
+  assert_success
+  assert_output --partial "Dry Run"
+  assert_output --partial "nothing was deployed"
+}
