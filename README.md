@@ -614,7 +614,10 @@ Deploy to a target host:
 
 ```bash
 shippy deploy <hostname>
+shippy ship <hostname>     # alias for deploy
 ```
+
+`shippy ship <hostname>` is an alias and behaves exactly like `shippy deploy`, including all options.
 
 Options:
 - `--dry-run` - Preview which files and commands would be deployed without connecting to the host
@@ -626,6 +629,7 @@ Example:
 shippy deploy staging
 shippy deploy production
 shippy deploy production --dry-run   # Preview files and commands, no connection
+shippy ship production               # Same as shippy deploy production
 ```
 
 When run without a host argument, an interactive host selector is shown.

@@ -13,8 +13,9 @@ var (
 )
 
 var deployCmd = &cobra.Command{
-	Use:   "deploy [host]",
-	Short: "Deploy to a target host",
+	Use:     "deploy [host]",
+	Aliases: []string{"ship"},
+	Short:   "Deploy to a target host",
 	Long: `Deploy your TYPO3 project to a target host defined in .shippy.yaml.
 
 The deployment process:
@@ -30,7 +31,8 @@ The deployment process:
 Example:
   shippy deploy                  (interactive host selection)
   shippy deploy staging
-  shippy deploy production`,
+  shippy deploy production
+  shippy ship production         ("ship" is an alias for "deploy")`,
 	Args:         cobra.MaximumNArgs(1),
 	RunE:         runDeploy,
 	SilenceUsage: true, // Don't show usage on errors
