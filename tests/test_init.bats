@@ -126,16 +126,16 @@ teardown() {
   assert_output --partial "Example:"
 }
 
-@test "Should create .shippy.yaml with the shipify alias" {
-  run -0 ${BIN} shipify
+@test "Should create .shippy.yaml with the shippify alias" {
+  run -0 ${BIN} shippify
   assert_success
   assert_output --partial "Shippy - Initialize Configuration"
   assert_file_exist ".shippy.yaml"
 }
 
-@test "Should list shipify as an alias in init help" {
+@test "Should list shippify as an alias in init help" {
   run -0 ${BIN} init --help
   assert_success
   assert_output --partial "Aliases:"
-  assert_output --partial "init, shipify"
+  assert_output --partial "init, shippify"
 }

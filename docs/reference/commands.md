@@ -9,7 +9,7 @@ description: Every Shippy command — init, deploy, rollback, backup, unlock, gi
 
 | Command | Purpose |
 | --- | --- |
-| [`shippy init`](#initialize) | Create a `.shippy.yaml` with TYPO3 defaults (alias: `shippy shipify`) |
+| [`shippy init`](#initialize) | Create a `.shippy.yaml` with TYPO3 defaults (alias: `shippy shippify`) |
 | [`shippy deploy <host>`](#deploy) | Deploy to a target host (alias: `shippy ship`) |
 | [`shippy rollback <host>`](#rollback) | Switch `current` to another release (alias: `shippy shit`) |
 | [`shippy backup <host>`](#backup) | Download a database dump and shared files as a ZIP |
@@ -28,10 +28,10 @@ Create a new configuration file with TYPO3 defaults:
 
 ```bash
 shippy init
-shippy shipify             # alias for init
+shippy shippify            # alias for init
 ```
 
-`shippy shipify` is an alias and behaves exactly like `shippy init`, including all options.
+`shippy shippify` is an alias and behaves exactly like `shippy init`, including all options.
 
 Options:
 

@@ -597,10 +597,10 @@ Create a new configuration file with TYPO3 defaults:
 
 ```bash
 shippy init
-shippy shipify             # alias for init
+shippy shippify            # alias for init
 ```
 
-`shippy shipify` is an alias and behaves exactly like `shippy init`, including all options.
+`shippy shippify` is an alias and behaves exactly like `shippy init`, including all options.
 
 Options:
 - `--force` or `-f` - Overwrite existing configuration file
