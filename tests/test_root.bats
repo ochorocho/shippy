@@ -72,7 +72,7 @@ setup() {
 @test "Should list command aliases in root help" {
   run -0 ${BIN} --help
   assert_success
-  assert_output --partial "ship     = deploy"
-  assert_output --partial "shit     = rollback"
-  assert_output --partial "shipify  = init"
+  assert_output --partial "ship      = deploy"
+  assert_output --partial "shit      = rollback"
+  assert_output --partial "shippify  = init"
 }
