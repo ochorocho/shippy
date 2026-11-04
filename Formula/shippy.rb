@@ -42,7 +42,14 @@ class Shippy < Formula
   end
 
   test do
-    assert_match "shippy version", shell_output("#{bin}/shippy version")
+    assert_match "shippy version #{version}", shell_output("#{bin}/shippy version")
     assert_match "Usage:", shell_output("#{bin}/shippy --help")
+
+    # Offline workflow: scaffold a config, validate it, preview a deploy.
+    (testpath/"composer.json").write '{"name":"acme/site"}'
+    system bin/"shippy", "init"
+    assert_path_exists testpath/".shippy.yaml"
+    system bin/"shippy", "config", "validate"
+    assert_match "composer.json", shell_output("#{bin}/shippy deploy production --dry-run --verbose")
   end
 end
