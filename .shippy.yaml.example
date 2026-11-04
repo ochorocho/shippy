@@ -151,6 +151,8 @@ backup:
 # Precedence: per-command > per-host (hosts.<name>.command_context) > this global.
 # command_context: docker exec -u www-data php85
 
+# If "commands" is not set, the default TYPO3 commands run. Use "commands: []" to
+# run none.
 commands:
   - name: Clear TYPO3 cache
     run: ./vendor/bin/typo3 cache:flush

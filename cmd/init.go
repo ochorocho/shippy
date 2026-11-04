@@ -158,6 +158,8 @@ hosts:
 #   - cache:flush
 #   - cache:warmup
 #
+# Use "commands: []" to run no commands at all.
+#
 # Uncomment to customize:
 # commands:
 #   - name: Clear TYPO3 cache

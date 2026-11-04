@@ -374,6 +374,16 @@ setup_backup_source() {
   assert_output --partial "Release activated"
 }
 
+@test "deploy with an empty commands list activates a release without running commands" {
+  sed -i.bak '/^commands:$/,/run: "true"$/d' .shippy.yaml
+  printf 'commands: []\n' >> .shippy.yaml
+
+  deploy_version v1
+  refute_output --partial "Executing"
+  assert_output --partial "Release activated"
+  assert_live_version v1
+}
+
 @test "deploy reports changed files like new ones" {
   printf 'first\n' > app/version.txt
   run -0 ${BIN} deploy production

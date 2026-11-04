@@ -179,3 +179,54 @@ teardown() {
   run -1 ${BIN} deploy --config ${BATS_TEST_DIRNAME}/config-test/multi-host.yaml < /dev/null
   assert_output --partial "interactive selection needs a terminal: pass the host name as an argument"
 }
+
+@test "Should run no commands with an empty commands list" {
+  mkdir -p public
+  touch public/index.php
+  cat > no-commands.yaml <<'EOF'
+include:
+  - public/
+commands: []
+hosts:
+  production:
+    hostname: 127.0.0.1
+    remote_user: root
+    deploy_path: /var/www/html
+EOF
+  run -0 ${BIN} deploy production --dry-run --config no-commands.yaml
+  refute_output --partial "Commands to execute"
+  refute_output --partial "typo3"
+}
+
+@test "Should use the default commands when commands is not set" {
+  mkdir -p public
+  touch public/index.php
+  cat > default-commands.yaml <<'EOF'
+include:
+  - public/
+hosts:
+  production:
+    hostname: 127.0.0.1
+    remote_user: root
+    deploy_path: /var/www/html
+EOF
+  run -0 ${BIN} deploy production --dry-run --config default-commands.yaml
+  assert_output --partial "Commands to execute (5)"
+}
+
+@test "Should use the default commands when commands is empty without brackets" {
+  mkdir -p public
+  touch public/index.php
+  cat > null-commands.yaml <<'EOF'
+include:
+  - public/
+commands:
+hosts:
+  production:
+    hostname: 127.0.0.1
+    remote_user: root
+    deploy_path: /var/www/html
+EOF
+  run -0 ${BIN} deploy production --dry-run --config null-commands.yaml
+  assert_output --partial "Commands to execute (5)"
+}
