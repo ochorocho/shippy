@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ochorocho/shippy/internal/ssh"
+	"github.com/ochorocho/shippy/internal/ui"
 )
 
 // DownloadShared downloads specific files/directories from the remote server's
@@ -66,6 +67,10 @@ func DownloadShared(client *ssh.Client, deployPath string, files []string, zb *Z
 
 		if err := zb.AddFile(zipPath, tr); err != nil {
 			return fmt.Errorf("failed to add shared file '%s': %w", cleanPath, err)
+		}
+
+		if verbose {
+			ui.New().Println("  %s", zipPath)
 		}
 	}
 

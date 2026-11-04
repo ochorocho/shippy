@@ -295,11 +295,17 @@ setup_backup_source() {
   refute_line "shared/fileadmin/hello.txt"
 }
 
-@test "backup accepts --verbose and -v" {
+@test "backup lists files only with --verbose and -v" {
   setup_backup_source
 
+  run -0 ${BIN} backup production --skip-database -o "${OUT_DIR}"
+  refute_output --partial "shared/fileadmin/hello.txt"
+
   run -0 ${BIN} backup production --skip-database --verbose -o "${OUT_DIR}"
+  assert_output --partial "shared/fileadmin/hello.txt"
+
   run -0 ${BIN} backup production --skip-database -v -o "${OUT_DIR}"
+  assert_output --partial "shared/fileadmin/hello.txt"
 }
 
 # Deploy
