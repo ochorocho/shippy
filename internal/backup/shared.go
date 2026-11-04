@@ -34,6 +34,7 @@ func DownloadShared(client *ssh.Client, deployPath string, files []string, zb *Z
 
 	// Stream as tar archive via SSH
 	pr, pw := io.Pipe()
+	defer pr.Close() // Unblocks the writer on early return
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -66,6 +67,12 @@ func DownloadShared(client *ssh.Client, deployPath string, files []string, zb *Z
 		if err := zb.AddFile(zipPath, tr); err != nil {
 			return fmt.Errorf("failed to add shared file '%s': %w", cleanPath, err)
 		}
+	}
+
+	// tar pads its output past the end-of-archive marker. Drain it, or the
+	// writer blocks forever and the command below never completes.
+	if _, err := io.Copy(io.Discard, pr); err != nil {
+		return fmt.Errorf("failed to read tar stream: %w", err)
 	}
 
 	// Wait for SSH command to complete
