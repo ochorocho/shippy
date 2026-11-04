@@ -42,9 +42,9 @@ func (st *Transfer) hashSearch(targets []target, tagTable map[uint16]int, head r
 		return err
 	}
 
-	if !st.Opts.Server() &&
-		st.Opts.InfoGTE(rsyncopts.INFO_NAME, 1) &&
-		st.Opts.InfoGTE(rsyncopts.INFO_PROGRESS, 1) {
+	// SHIPPY PATCH: same as sendFile, so changed files are reported like new ones.
+	// See SHIPPY_PATCHES.md.
+	if !st.Opts.Server() && st.Opts.InfoGTE(rsyncopts.INFO_NAME, 1) {
 		fmt.Fprintln(st.Env.Stdout, fl.path)
 	}
 

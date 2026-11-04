@@ -39,7 +39,8 @@ files excluded.
 `rsyncclient/rsyncclient.go` gains `WithStdout(io.WriteCloser)` (parallel to the
 existing `WithStderr`) so shippy can capture what the client writes to stdout.
 
-`internal/sender/sender.go` printed the transferred file name only when both
+`internal/sender/sender.go` (new files) and `internal/sender/match.go` (changed
+files, the delta path) printed the transferred file name only when both
 `--info=name` **and** `--info=progress` were set, coupling name output to the
 per-file progress display. Real rsync prints names with `-v`/`--info=name`
 alone. Patched to print on `--info=name` by itself, so shippy can pass

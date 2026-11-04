@@ -330,6 +330,16 @@ setup_backup_source() {
   assert_live_version v2
 }
 
+@test "deploy reports changed files like new ones" {
+  printf 'first\n' > app/version.txt
+  run -0 ${BIN} deploy production
+
+  printf 'second-longer\n' > app/version.txt
+  run -0 ${BIN} deploy production --verbose
+  assert_output --partial "Uploading: app/version.txt"
+  assert_output --partial "Uploaded 1 files"
+}
+
 # Unlock
 
 write_foreign_lock() {
