@@ -15,6 +15,8 @@
 set -eu -o pipefail
 setup() {
   set -eu -o pipefail
+  load test_helpers
+  isolate_home
 
   export DEPLOYMENT_SOURCE="$BATS_TEST_DIRNAME/typo3-v14"
   export DEPLOYMENT_TARGET="$BATS_TEST_DIRNAME/www"
