@@ -5,13 +5,12 @@
 #   brew trust ochorocho/shippy
 #   brew install shippy
 #
-# Do NOT hand-edit the version/url/sha256 values below — run `make brew-formula`
+# Do NOT hand-edit the url/sha256 values below — run `make brew-formula`
 # (or scripts/update-formula.sh) to bump them for a release; the Release
 # workflow does this automatically on tagged builds.
 class Shippy < Formula
   desc "Zero-downtime deployment tool for Composer based PHP projects"
   homepage "https://github.com/ochorocho/shippy"
-  version "0.2.6"
   license "MIT"
 
   on_macos do

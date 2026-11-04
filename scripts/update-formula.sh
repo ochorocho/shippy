@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Update the Homebrew formula (prebuilt-binary install) to a given release tag:
-# rewrites `version`, each per-arch download `url`, and the matching `sha256`.
+# rewrites each per-arch download `url`, and the matching `sha256`.
 #
 # Usage: scripts/update-formula.sh [vX.Y.Z]
 #   Defaults to the most recent v*.*.* git tag.
@@ -23,7 +23,6 @@ if [ -z "$TAG" ]; then
     echo "No v*.*.* tag found" >&2
     exit 1
 fi
-VERSION="${TAG#v}"
 
 # Fetch and validate the published checksum for one architecture's binary.
 # Retries a few times: just-uploaded release assets can take a moment to
@@ -51,14 +50,13 @@ SHA_DARWIN_ARM64=$(fetch_sum darwin-arm64)
 SHA_LINUX_AMD64=$(fetch_sum linux-amd64)
 SHA_LINUX_ARM64=$(fetch_sum linux-arm64)
 
-# Rewrite version, each url's tag segment, and the sha256 line that follows it.
+# Rewrite each url's tag segment, and the sha256 line that follows it.
 tmp=$(mktemp)
-awk -v tag="$TAG" -v version="$VERSION" \
+awk -v tag="$TAG" \
     -v s_darwin_amd64="$SHA_DARWIN_AMD64" \
     -v s_darwin_arm64="$SHA_DARWIN_ARM64" \
     -v s_linux_amd64="$SHA_LINUX_AMD64" \
     -v s_linux_arm64="$SHA_LINUX_ARM64" '
-    /^  version "/ { sub(/"[^"]*"/, "\"" version "\""); print; next }
     /^      url "/ {
         gsub(/download\/v[0-9]+\.[0-9]+\.[0-9]+\//, "download/" tag "/")
         if      ($0 ~ /shippy-darwin-amd64"/) pending = "darwin_amd64"
