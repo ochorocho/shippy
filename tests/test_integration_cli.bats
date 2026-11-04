@@ -384,6 +384,20 @@ setup_backup_source() {
   assert_live_version v1
 }
 
+@test "deploy names the release after the server time" {
+  printf 'v1\n' > app/version.txt
+
+  local before after name
+  before="$(remote date +%Y%m%d%H%M%S)"
+  # UTC+14: far from the server's clock, so a local timestamp cannot pass.
+  run -0 env TZ=Pacific/Kiritimati ${BIN} deploy production
+  after="$(remote date +%Y%m%d%H%M%S)"
+
+  name="$(remote ls -1 /var/www/html/releases)"
+  [[ ! "${name}" < "${before}" ]]
+  [[ ! "${name}" > "${after}" ]]
+}
+
 @test "deploy reports changed files like new ones" {
   printf 'first\n' > app/version.txt
   run -0 ${BIN} deploy production

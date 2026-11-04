@@ -10,7 +10,7 @@ When you run `shippy deploy <host>`, the following steps occur:
 1. **Scan files** — Walks source directory, applies the deny-by-default allowlist (include/exclude
    patterns)
 2. **Connect to server** — Establishes SSH connection
-3. **Create release** — Creates a new timestamped release directory (e.g. `releases/20260109203841`).
+3. **Create release** — Creates a new release directory named after the server's current time (e.g. `releases/20260109203841`).
    If that name is already taken because two deploys landed in the same second, a numeric suffix is
    appended (`20260109203841.1`), which keeps the lexical order that rollback and cleanup rely on
 4. **Sync files** — Transfers the scanned files to the server with rsync and fills the new release

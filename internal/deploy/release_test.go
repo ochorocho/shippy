@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -11,10 +12,21 @@ type fakeClient struct {
 	commands []string
 	mkdirs   []string
 	respond  func(cmd string) (string, error)
+	// dateOutput overrides the server's `date` result.
+	dateOutput func() (string, error)
 }
+
+// fakeServerTime is what the fake server's `date` prints.
+const fakeServerTime = "20300102030405"
 
 func (f *fakeClient) RunCommand(cmd string) (string, error) {
 	f.commands = append(f.commands, cmd)
+	if strings.HasPrefix(cmd, "date ") && f.dateOutput == nil {
+		return fakeServerTime + "\n", nil
+	}
+	if strings.HasPrefix(cmd, "date ") {
+		return f.dateOutput()
+	}
 	if f.respond != nil {
 		return f.respond(cmd)
 	}
@@ -231,5 +243,42 @@ func TestReadReleaseMetadataQuotesAndParses(t *testing.T) {
 	}
 	if !f.saw("cat '/srv/my app/releases/20240105120000/.shippy-release.json' 2>/dev/null") {
 		t.Errorf("expected quoted metadata read, commands: %v", f.commands)
+	}
+}
+
+func TestCreateReleaseIsNamedAfterTheServerTime(t *testing.T) {
+	r := NewReleaseManager(&fakeClient{}, spacedDeploy)
+
+	releasePath, err := r.CreateRelease()
+	if err != nil {
+		t.Fatalf("CreateRelease() error = %v", err)
+	}
+	if name := filepath.Base(releasePath); name != fakeServerTime {
+		t.Errorf("release name = %q, want the server time %q", name, fakeServerTime)
+	}
+}
+
+func TestCreateReleaseFailsWithoutAUsableServerTime(t *testing.T) {
+	tests := []struct {
+		name string
+		date func() (string, error)
+	}{
+		{"command fails", func() (string, error) { return "", errors.New("no date") }},
+		{"unexpected output", func() (string, error) { return "Tue Jan  2\n", nil }},
+		{"empty output", func() (string, error) { return "", nil }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &fakeClient{dateOutput: tt.date}
+			r := NewReleaseManager(f, spacedDeploy)
+
+			if _, err := r.CreateRelease(); err == nil {
+				t.Fatal("CreateRelease() succeeded, want an error")
+			}
+			if len(f.mkdirs) > 1 {
+				t.Errorf("created release dir despite the error: %v", f.mkdirs)
+			}
+		})
 	}
 }

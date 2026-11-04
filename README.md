@@ -855,7 +855,7 @@ When you run `shippy deploy <host>`, the following steps occur:
 
 1. **Scan files** - Walks source directory, applies the deny-by-default allowlist (include/exclude patterns)
 2. **Connect to server** - Establishes SSH connection
-3. **Create release** - Creates new timestamped release directory (e.g., `releases/20260109203841`)
+3. **Create release** - Creates new release directory named after the server's current time (e.g., `releases/20260109203841`)
 4. **Sync files** - Transfers files to the new release directory
 5. **Create symlinks** - Links shared files/directories from `shared/` to the release
 6. **Execute commands** - Runs commands **in the new release directory** (e.g., cache flush, migrations)
