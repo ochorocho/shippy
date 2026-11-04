@@ -51,11 +51,19 @@ teardown() {
   assert_output --partial "not found"
 }
 
-@test "Should fail when composer.json does not exist" {
+@test "Should warn and continue when composer.json does not exist" {
   rm -f composer.json
-  run -1 ${BIN} deploy production --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
-  assert_failure
-  assert_output --partial "composer.json"
+  mkdir -p public
+  touch public/index.php
+  run -0 ${BIN} deploy production --dry-run --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
+  assert_output --partial "! composer.json not found at composer.json"
+  assert_output --partial "Dry run completed"
+}
+
+@test "Should fail when composer.json is malformed" {
+  echo '{ not json' > composer.json
+  run -1 ${BIN} deploy production --dry-run --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
+  assert_output --partial "failed to parse composer.json"
 }
 
 @test "Should load configuration when deploying" {

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ochorocho/shippy/internal/composer"
 	"github.com/ochorocho/shippy/internal/config"
 	"github.com/ochorocho/shippy/internal/ui"
 
@@ -74,14 +73,14 @@ func runValidate(cmd *cobra.Command, args []string) error {
 	out.Success("Config structure is valid")
 
 	// Parse composer.json using configured path
-	composerPath := cfg.GetComposerPath()
-	out.Step("Loading composer.json from: %s", composerPath)
-	comp, err := composer.Parse(composerPath)
+	out.Step("Loading composer.json from: %s", cfg.GetComposerPath())
+	comp, found, err := loadComposer(cfg, out)
 	if err != nil {
-		out.Error("Failed to load composer.json: %v", err)
 		return err
 	}
-	out.Success("composer.json loaded successfully")
+	if found {
+		out.Success("composer.json loaded successfully")
+	}
 
 	// Process templates
 	out.Step("Processing template variables")
@@ -170,10 +169,8 @@ func runShow(cmd *cobra.Command, args []string) error {
 	cfg.ApplyDefaults()
 
 	if !rawOutput {
-		composerPath := cfg.GetComposerPath()
-		comp, err := composer.Parse(composerPath)
+		comp, _, err := loadComposer(cfg, out)
 		if err != nil {
-			out.Error("Failed to load composer.json from %s: %v", composerPath, err)
 			return err
 		}
 

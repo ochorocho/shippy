@@ -81,11 +81,12 @@ teardown() {
   assert_output --partial "not found"
 }
 
-@test "Should fail when composer.json does not exist" {
+@test "Should warn and continue when composer.json does not exist" {
   rm -f composer.json
-  run -1 ${BIN} backup production --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
-  assert_failure
-  assert_output --partial "composer.json"
+  # Fails later on the unreachable host, after getting past composer.json.
+  run ${BIN} backup production --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
+  assert_output --partial "! composer.json not found at composer.json"
+  assert_output --partial "Connecting to"
 }
 
 # Config loading

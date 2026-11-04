@@ -139,3 +139,18 @@ teardown() {
   assert_output --partial "Aliases:"
   assert_output --partial "init, shippify"
 }
+
+@test "Generated config should validate without a composer.json" {
+  rm -f composer.json
+  run -0 ${BIN} init
+  run -0 ${BIN} config validate
+  assert_output --partial "! composer.json not found at composer.json"
+  assert_output --partial "Deploy path: /var/www/my-project"
+}
+
+@test "Generated config should use the composer.json name as deploy path" {
+  create_test_composer_json
+  run -0 ${BIN} init
+  run -0 ${BIN} config validate
+  assert_output --partial "Deploy path: /var/www/test/shippy-project"
+}

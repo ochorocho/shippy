@@ -508,6 +508,8 @@ Access nested values:
 deploy_path: /var/www/{{extra.typo3/cms.web-dir}}
 ```
 
+If `composer.json` does not exist, Shippy warns and continues. Variables with a fallback use it, and variables without one fail with an error.
+
 Provide a fallback value with `|` (used when the key is not found in composer.json):
 
 ```yaml

@@ -158,3 +158,57 @@ teardown() {
   assert_success
   refute_output --partial "rollback_commands"
 }
+
+@test "Should validate with a warning when composer.json does not exist" {
+  rm -f composer.json
+  run -0 ${BIN} config validate --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
+  assert_output --partial "! composer.json not found at composer.json"
+  refute_output --partial "composer.json loaded successfully"
+  assert_output --partial "Configuration is valid!"
+}
+
+@test "Should show config with a warning when composer.json does not exist" {
+  rm -f composer.json
+  run -0 ${BIN} config show --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
+  assert_output --partial "! composer.json not found at composer.json"
+}
+
+@test "Should use template fallbacks when composer.json does not exist" {
+  rm -f composer.json
+  cat > fallback.yaml <<'EOF'
+include:
+  - public/
+commands:
+  - name: Flush
+    run: ./{{config.bin-dir|vendor/bin}}/typo3 cache:flush
+hosts:
+  production:
+    hostname: 127.0.0.1
+    remote_user: root
+    deploy_path: /var/www/html
+EOF
+  run -0 ${BIN} config show --config fallback.yaml
+  assert_output --partial "./vendor/bin/typo3 cache:flush"
+}
+
+@test "Should fail on a template variable without fallback when composer.json does not exist" {
+  rm -f composer.json
+  cat > no-fallback.yaml <<'EOF'
+include:
+  - public/
+hosts:
+  production:
+    hostname: 127.0.0.1
+    remote_user: root
+    deploy_path: /var/www/{{name}}
+EOF
+  run -1 ${BIN} config validate --config no-fallback.yaml
+  assert_output --partial "! composer.json not found at composer.json"
+  assert_output --partial "key 'name' not found in composer.json"
+}
+
+@test "Should fail validation when composer.json is malformed" {
+  echo '{ not json' > composer.json
+  run -1 ${BIN} config validate --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
+  assert_output --partial "failed to parse composer.json"
+}

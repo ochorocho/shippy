@@ -12,6 +12,11 @@ type Composer struct {
 	data map[string]interface{}
 }
 
+// Empty returns a Composer without any keys, for projects without a composer.json.
+func Empty() *Composer {
+	return &Composer{data: map[string]interface{}{}}
+}
+
 // Parse reads and parses a composer.json file
 func Parse(path string) (*Composer, error) {
 	// #nosec G304 -- Composer path comes from config or project root

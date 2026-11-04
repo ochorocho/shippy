@@ -366,6 +366,14 @@ setup_backup_source() {
   assert_live_version v2
 }
 
+@test "deploy works without a composer.json" {
+  rm composer.json
+
+  run -0 ${BIN} deploy production
+  assert_output --partial "! composer.json not found at composer.json"
+  assert_output --partial "Release activated"
+}
+
 @test "deploy reports changed files like new ones" {
   printf 'first\n' > app/version.txt
   run -0 ${BIN} deploy production
