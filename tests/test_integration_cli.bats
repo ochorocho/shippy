@@ -31,7 +31,6 @@ setup() {
   set -eu -o pipefail
   load test_helpers
   common_setup
-  DEPLOY_COUNT=0
 
   remote rm -rf /var/www/html/releases /var/www/html/shared /var/www/html/current /var/www/html/.cache /var/www/html/.shippy
 
@@ -86,12 +85,8 @@ remote() {
 }
 
 # Deploys a release whose content identifies it, e.g. `deploy_version v1`.
-# The versions have equal size and rsync skips files with matching size and
-# mtime, so each deploy gets its own mtime.
 deploy_version() {
-  DEPLOY_COUNT=$((DEPLOY_COUNT + 1))
   printf '%s\n' "$1" > app/version.txt
-  touch -t "20260101000${DEPLOY_COUNT}" app/version.txt
   run ${BIN} deploy production
   assert_success
 }
@@ -305,6 +300,19 @@ setup_backup_source() {
 
   run -0 ${BIN} backup production --skip-database --verbose -o "${OUT_DIR}"
   run -0 ${BIN} backup production --skip-database -v -o "${OUT_DIR}"
+}
+
+# Deploy
+
+@test "deploy ships a changed file with equal size and mtime" {
+  printf 'v1\n' > app/version.txt
+  touch -t 202601010000 app/version.txt
+  run -0 ${BIN} deploy production
+
+  printf 'v2\n' > app/version.txt
+  touch -t 202601010000 app/version.txt
+  run -0 ${BIN} deploy production
+  assert_live_version v2
 }
 
 # Unlock

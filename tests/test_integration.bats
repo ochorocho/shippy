@@ -159,8 +159,7 @@ teardown() {
 @test "rsync redeploy: a changed same-size file is deployed, not silently skipped" {
   set -eu -o pipefail
 
-  # Guards issue #34 in the rsync era: rsync's quick check transfers a file
-  # whenever size+mtime differ, so a changed same-size file (with a different
+  # Guards issue #34 in the rsync era: a changed same-size file (with a different
   # mtime) must reach the release rather than being skipped as "unchanged".
   cd "$BATS_TEST_DIRNAME/config-test"
 

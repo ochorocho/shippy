@@ -46,7 +46,7 @@ Step 4 is an rsync transfer, driven by an rsync client compiled into the Shippy 
 `rsync` installed on the server. Two things happen:
 
 1. **Push to the cache.** The scanned file list is streamed over the existing SSH connection into
-   `<deploy_path>/.cache/`. This is a real rsync delta: files that are unchanged since the last
+   `<deploy_path>/.cache/`. This is a real rsync delta: files whose content is unchanged since the last
    deploy are skipped natively, changed files only send the blocks that differ, and `--delete`
    removes anything that has since left your allowlist. A progress bar shows the upload;
    `--verbose` prints every file instead.
