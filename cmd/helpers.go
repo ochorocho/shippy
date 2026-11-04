@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"errors"
+	"io/fs"
 	"sort"
 
+	"github.com/ochorocho/shippy/internal/composer"
 	"github.com/ochorocho/shippy/internal/config"
 	"github.com/ochorocho/shippy/internal/ui"
 )
@@ -35,4 +38,21 @@ func loadConfigFile(out *ui.Output) (*config.Config, error) {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+// loadComposer loads the configured composer.json and reports whether it exists.
+// A missing file only warns, as template variables without a fallback still fail
+// when they are processed. A malformed file is an error.
+func loadComposer(cfg *config.Config, out *ui.Output) (*composer.Composer, bool, error) {
+	path := cfg.GetComposerPath()
+	comp, err := composer.Parse(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		out.Warning("composer.json not found at %s, continuing without it", path)
+		return composer.Empty(), false, nil
+	}
+	if err != nil {
+		out.Error("Failed to load composer.json from %s: %v", path, err)
+		return nil, false, err
+	}
+	return comp, true, nil
 }

@@ -22,6 +22,16 @@ common_setup() {
   bats_load_library bats-support
 }
 
+# Point HOME at a temporary directory shared by the whole run, so tests neither
+# read nor write the developer's ~/.ssh/known_hosts. The test container's host key
+# changes on every image rebuild, which a stale entry there would reject.
+isolate_home() {
+  export DOCKER_CONFIG="${DOCKER_CONFIG:-${HOME}/.docker}"
+  export HOME="${BATS_RUN_TMPDIR}/home"
+  mkdir -p "${HOME}/.ssh"
+  chmod 700 "${HOME}/.ssh"
+}
+
 # Check if Docker is available
 docker_available() {
   command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"github.com/ochorocho/shippy/internal/composer"
 	"github.com/ochorocho/shippy/internal/deploy"
 	"github.com/ochorocho/shippy/internal/ui"
 	"github.com/spf13/cobra"
@@ -66,10 +65,8 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 	}
 
 	// Load composer.json using configured path
-	composerPath := cfg.GetComposerPath()
-	comp, err := composer.Parse(composerPath)
+	comp, _, err := loadComposer(cfg, out)
 	if err != nil {
-		out.Error("Failed to load composer.json from %s: %v", composerPath, err)
 		return err
 	}
 

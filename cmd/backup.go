@@ -3,7 +3,6 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 	"github.com/ochorocho/shippy/internal/backup"
-	"github.com/ochorocho/shippy/internal/composer"
 	"github.com/ochorocho/shippy/internal/ui"
 )
 
@@ -68,10 +67,8 @@ func runBackup(cmd *cobra.Command, args []string) error {
 	}
 
 	// Load composer.json for template processing
-	composerPath := cfg.GetComposerPath()
-	comp, err := composer.Parse(composerPath)
+	comp, _, err := loadComposer(cfg, out)
 	if err != nil {
-		out.Error("Failed to load composer.json from %s: %v", composerPath, err)
 		return err
 	}
 

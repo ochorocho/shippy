@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/fatih/color"
+	"golang.org/x/term"
 )
 
 // Output provides consistent, reusable output formatting
@@ -207,14 +208,16 @@ func (o *Output) SelectHost(hosts []string) (string, error) {
 		return hosts[0], nil
 	}
 
-	model := newSelectorModel(hosts)
-	p := tea.NewProgram(
-		model,
-		tea.WithInput(os.Stdin),
-		tea.WithOutput(os.Stderr),
-	)
+	if err := requireTerminal("pass the host name as an argument"); err != nil {
+		return "", err
+	}
 
-	finalModel, err := p.Run()
+	return runHostSelector(hosts, tea.WithInput(os.Stdin), tea.WithOutput(os.Stderr))
+}
+
+// runHostSelector runs the host selector on the given program options.
+func runHostSelector(hosts []string, opts ...tea.ProgramOption) (string, error) {
+	finalModel, err := tea.NewProgram(newSelectorModel(hosts), opts...).Run()
 	if err != nil {
 		return "", fmt.Errorf("failed to run selector: %w", err)
 	}
@@ -241,14 +244,16 @@ func (o *Output) SelectRelease(releases []ReleaseItem) (*ReleaseItem, error) {
 		return nil, fmt.Errorf("no releases available")
 	}
 
-	model := newReleaseSelectorModel(releases)
-	p := tea.NewProgram(
-		model,
-		tea.WithInput(os.Stdin),
-		tea.WithOutput(os.Stderr),
-	)
+	if err := requireTerminal("use --release or --offset"); err != nil {
+		return nil, err
+	}
 
-	finalModel, err := p.Run()
+	return runReleaseSelector(releases, tea.WithInput(os.Stdin), tea.WithOutput(os.Stderr))
+}
+
+// runReleaseSelector runs the release selector on the given program options.
+func runReleaseSelector(releases []ReleaseItem, opts ...tea.ProgramOption) (*ReleaseItem, error) {
+	finalModel, err := tea.NewProgram(newReleaseSelectorModel(releases), opts...).Run()
 	if err != nil {
 		return nil, fmt.Errorf("failed to run release selector: %w", err)
 	}
@@ -267,6 +272,15 @@ func (o *Output) SelectRelease(releases []ReleaseItem) (*ReleaseItem, error) {
 	}
 
 	return m.selected, nil
+}
+
+// requireTerminal fails fast instead of letting a selector wait for input that
+// can never arrive, e.g. in CI.
+func requireTerminal(hint string) error {
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return fmt.Errorf("interactive selection needs a terminal: %s", hint)
+	}
+	return nil
 }
 
 func isNumber(s string) bool {

@@ -76,3 +76,22 @@ setup() {
   assert_output --partial "shit      = rollback"
   assert_output --partial "shippify  = init"
 }
+
+@test "Should print version details with the version command" {
+  run -0 ${BIN} version
+  assert_output --partial "shippy version "
+  assert_output --partial "commit:"
+  assert_output --partial "built:"
+  assert_output --partial "go:"
+}
+
+@test "Should print the same details with --version and -v" {
+  run -0 ${BIN} version
+  local expected="${output}"
+
+  run -0 ${BIN} --version
+  assert_output "${expected}"
+
+  run -0 ${BIN} -v
+  assert_output "${expected}"
+}

@@ -153,8 +153,10 @@ func (s *Syncer) pushToCache(cachePath, listFile string, totalFiles int, out *ui
 	// --perms forwards -p to the remote rsync receiver so it applies the source
 	// modes (which the sender always transmits) into .cache/ instead of using the
 	// remote umask.
+	// --checksum compares file content. rsync's default size+mtime check silently
+	// skips a changed file with equal size and mtime, leaving stale code live.
 	client, err := rsyncclient.New([]string{
-		"-rlt", "--perms", "--delete", "--info=name1",
+		"-rlt", "--checksum", "--perms", "--delete", "--info=name1",
 		"--files-from=" + listFile, "--from0",
 	}, rsyncclient.WithSender(), rsyncclient.WithStdout(progress), rsyncclient.WithStderr(clientStderr))
 	if err != nil {

@@ -267,7 +267,10 @@ jobs:
         uses: Homebrew/actions/setup-homebrew@main
 
       - name: Tap shippy
-        run: brew tap ochorocho/shippy https://github.com/ochorocho/shippy
+        run: |
+          brew tap ochorocho/shippy https://github.com/ochorocho/shippy
+          # Homebrew refuses to load formulae from a tap until it is trusted.
+          brew trust ochorocho/shippy
 
       - name: Install prebuilt binary
         run: brew install ochorocho/shippy/shippy

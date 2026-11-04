@@ -127,7 +127,7 @@ hosts:
     # Required: SSH connection details
     hostname: www.example.com
     remote_user: deploy
-    deploy_path: /var/www/{{name}}
+    deploy_path: /var/www/{{name|my-project}}
 
     # Optional: SSH port (default: 22)
     # port: 22
@@ -157,6 +157,8 @@ hosts:
 #   - language:update
 #   - cache:flush
 #   - cache:warmup
+#
+# Use "commands: []" to run no commands at all.
 #
 # Uncomment to customize:
 # commands:

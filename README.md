@@ -159,7 +159,9 @@ commands:
 
 ### Commands
 
-`commands` (and `rollback_commands`) run in the new release directory, in order, before the atomic switchover. Each entry needs a `name` and a `run`:
+If `commands` is not set, Shippy runs the default TYPO3 commands (`extension:setup`, `upgrade:run`, `language:update`, `cache:flush`, `cache:warmup`). Set `commands: []` to run none.
+
+`commands` run in the new release directory, in order, before the atomic switchover. `rollback_commands` run in the selected release directory after `current` has switched; if one fails, `shippy rollback` exits with an error but the selected release stays live. Each entry needs a `name` and a `run`:
 
 ```yaml
 commands:
@@ -508,6 +510,8 @@ Access nested values:
 deploy_path: /var/www/{{extra.typo3/cms.web-dir}}
 ```
 
+If `composer.json` does not exist, Shippy warns and continues. Variables with a fallback use it, and variables without one fail with an error.
+
 Provide a fallback value with `|` (used when the key is not found in composer.json):
 
 ```yaml
@@ -851,7 +855,7 @@ When you run `shippy deploy <host>`, the following steps occur:
 
 1. **Scan files** - Walks source directory, applies the deny-by-default allowlist (include/exclude patterns)
 2. **Connect to server** - Establishes SSH connection
-3. **Create release** - Creates new timestamped release directory (e.g., `releases/20260109203841`)
+3. **Create release** - Creates new release directory named after the server's current time (e.g., `releases/20260109203841`)
 4. **Sync files** - Transfers files to the new release directory
 5. **Create symlinks** - Links shared files/directories from `shared/` to the release
 6. **Execute commands** - Runs commands **in the new release directory** (e.g., cache flush, migrations)

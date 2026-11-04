@@ -224,7 +224,7 @@ func runRollback(cmd *cobra.Command, args []string) error {
 
 		if len(commands) > 0 {
 			if err := executor.Execute(commands, selected.Path); err != nil {
-				out.Error("Rollback command execution failed: %v", err)
+				out.Error("Release %s is live, but a rollback command failed: %v", selected.Name, err)
 				return err
 			}
 		}

@@ -44,6 +44,8 @@ jobs:
           TAP_DIR="$(brew --repository)/Library/Taps/shippy/homebrew-ci"
           mkdir -p "$TAP_DIR/Formula"
           cp Formula/shippy.rb "$TAP_DIR/Formula/shippy.rb"
+          # Homebrew refuses to load formulae from a tap until it is trusted.
+          brew trust shippy/ci
 
       - name: Audit formula
         # --online validates each per-arch url + sha256 actually resolves.

@@ -430,8 +430,9 @@ func (c *Config) ApplyDefaults() {
 		c.LockTimeout = DefaultLockTimeoutMinutes
 	}
 
-	// Set default TYPO3 commands if not specified
-	if len(c.Commands) == 0 {
+	// Set default TYPO3 commands if not specified. An explicit `commands: []` is
+	// non-nil and means "run nothing".
+	if c.Commands == nil {
 		c.Commands = []Command{
 			{
 				Name: "Run extension setup",

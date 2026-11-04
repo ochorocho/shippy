@@ -3,9 +3,9 @@ package deploy
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/ochorocho/shippy/internal/config"
 	"github.com/ochorocho/shippy/internal/ssh"
@@ -65,6 +65,24 @@ func (r *ReleaseManager) CreateRelease() (string, error) {
 	return releasePath, nil
 }
 
+// releaseTimestamp matches the names produced by the server's `date` below.
+var releaseTimestamp = regexp.MustCompile(`^\d{14}$`)
+
+// serverTimestamp returns the server's current time as a release name. Cleanup and
+// rollback sort releases by name, so names must come from one clock: machines
+// deploying to the same host can differ in time zone or clock.
+func (r *ReleaseManager) serverTimestamp() (string, error) {
+	output, err := r.client.RunCommand("date +%Y%m%d%H%M%S")
+	if err != nil {
+		return "", fmt.Errorf("failed to read the server time: %w", err)
+	}
+	timestamp := strings.TrimSpace(output)
+	if !releaseTimestamp.MatchString(timestamp) {
+		return "", fmt.Errorf("unexpected server time %q from date", timestamp)
+	}
+	return timestamp, nil
+}
+
 // maxReleaseSuffix caps the same-second disambiguation search. Reaching it would
 // require thousands of deploys within one second, which never happens in practice.
 const maxReleaseSuffix = 1000
@@ -80,7 +98,10 @@ const maxReleaseSuffix = 1000
 // (20240101120000 < 20240101120000.1 < 20240101120001). Deploys hold a per-host
 // lock, so no concurrent deploy can claim the path between the check and mkdir.
 func (r *ReleaseManager) uniqueReleasePath(releasesDir string) (string, error) {
-	base := time.Now().Format("20060102150405")
+	base, err := r.serverTimestamp()
+	if err != nil {
+		return "", err
+	}
 	for attempt := 0; attempt <= maxReleaseSuffix; attempt++ {
 		name := base
 		if attempt > 0 {

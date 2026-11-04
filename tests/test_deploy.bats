@@ -51,11 +51,19 @@ teardown() {
   assert_output --partial "not found"
 }
 
-@test "Should fail when composer.json does not exist" {
+@test "Should warn and continue when composer.json does not exist" {
   rm -f composer.json
-  run -1 ${BIN} deploy production --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
-  assert_failure
-  assert_output --partial "composer.json"
+  mkdir -p public
+  touch public/index.php
+  run -0 ${BIN} deploy production --dry-run --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
+  assert_output --partial "! composer.json not found at composer.json"
+  assert_output --partial "Dry run completed"
+}
+
+@test "Should fail when composer.json is malformed" {
+  echo '{ not json' > composer.json
+  run -1 ${BIN} deploy production --dry-run --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
+  assert_output --partial "failed to parse composer.json"
 }
 
 @test "Should load configuration when deploying" {
@@ -160,4 +168,65 @@ teardown() {
   assert_success
   assert_output --partial "Dry Run"
   assert_output --partial "nothing was deployed"
+}
+
+@test "Should list individual files with --dry-run -v" {
+  run -0 ${BIN} deploy production --dry-run -v --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
+  assert_output --partial "composer.json"
+}
+
+@test "Should fail without a terminal when several hosts need selecting" {
+  run -1 ${BIN} deploy --config ${BATS_TEST_DIRNAME}/config-test/multi-host.yaml < /dev/null
+  assert_output --partial "interactive selection needs a terminal: pass the host name as an argument"
+}
+
+@test "Should run no commands with an empty commands list" {
+  mkdir -p public
+  touch public/index.php
+  cat > no-commands.yaml <<'EOF'
+include:
+  - public/
+commands: []
+hosts:
+  production:
+    hostname: 127.0.0.1
+    remote_user: root
+    deploy_path: /var/www/html
+EOF
+  run -0 ${BIN} deploy production --dry-run --config no-commands.yaml
+  refute_output --partial "Commands to execute"
+  refute_output --partial "typo3"
+}
+
+@test "Should use the default commands when commands is not set" {
+  mkdir -p public
+  touch public/index.php
+  cat > default-commands.yaml <<'EOF'
+include:
+  - public/
+hosts:
+  production:
+    hostname: 127.0.0.1
+    remote_user: root
+    deploy_path: /var/www/html
+EOF
+  run -0 ${BIN} deploy production --dry-run --config default-commands.yaml
+  assert_output --partial "Commands to execute (5)"
+}
+
+@test "Should use the default commands when commands is empty without brackets" {
+  mkdir -p public
+  touch public/index.php
+  cat > null-commands.yaml <<'EOF'
+include:
+  - public/
+commands:
+hosts:
+  production:
+    hostname: 127.0.0.1
+    remote_user: root
+    deploy_path: /var/www/html
+EOF
+  run -0 ${BIN} deploy production --dry-run --config null-commands.yaml
+  assert_output --partial "Commands to execute (5)"
 }

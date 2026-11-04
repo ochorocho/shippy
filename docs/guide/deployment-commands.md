@@ -5,8 +5,13 @@ description: Commands that run in the new release before it goes live — scopin
 
 # Deployment Commands
 
-`commands` (and `rollback_commands`) run in the new release directory, in order, before the atomic
-switchover. Each entry needs a `name` and a `run`:
+If `commands` is not set, Shippy runs the default TYPO3 commands (`extension:setup`, `upgrade:run`,
+`language:update`, `cache:flush`, `cache:warmup`). Set `commands: []` to run none.
+
+`commands` run in the new release directory, in order, before the atomic switchover.
+`rollback_commands` run in the selected release directory after `current` has switched; if one
+fails, `shippy rollback` exits with an error but the selected release stays live. Each entry needs a
+`name` and a `run`:
 
 ```yaml
 commands:
