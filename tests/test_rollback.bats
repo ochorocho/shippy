@@ -120,3 +120,13 @@ teardown() {
   assert_failure
   assert_output --partial "not found"
 }
+
+@test "Should fail when --list is combined with --release" {
+  run -1 ${BIN} rollback production --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml -l -r 20260109120000
+  assert_output --partial "cannot use --list with --release or --offset"
+}
+
+@test "Should fail when --list is combined with --offset" {
+  run -1 ${BIN} rollback production --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml --list --offset=-1
+  assert_output --partial "cannot use --list with --release or --offset"
+}

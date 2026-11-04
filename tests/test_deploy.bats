@@ -161,3 +161,8 @@ teardown() {
   assert_output --partial "Dry Run"
   assert_output --partial "nothing was deployed"
 }
+
+@test "Should list individual files with --dry-run -v" {
+  run -0 ${BIN} deploy production --dry-run -v --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
+  assert_output --partial "composer.json"
+}
