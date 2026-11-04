@@ -74,7 +74,7 @@ jobs:
       - name: Setup Bats and Bats libs
         id: setup-bats
         run: |
-          sudo apt-get update && sudo apt-get install -y bats bats-assert bats-support bats-file
+          sudo apt-get update && sudo apt-get install -y bats bats-assert bats-support bats-file expect
 
       - name: Run quick tests (Serial Execution)
         shell: bash

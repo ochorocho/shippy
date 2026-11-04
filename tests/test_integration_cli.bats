@@ -252,6 +252,42 @@ zip_entries() {
   assert_live_version v3
 }
 
+# Runs `shippy rollback production` in a pseudo-terminal and types the given keys
+# once the selector is showing. Exits with the status of shippy.
+rollback_in_terminal() {
+  TERM=xterm KEYS="$1" expect -c '
+    set timeout 60
+    spawn '"${BIN}"' rollback production
+    expect {
+      "Select release" {}
+      timeout { exit 124 }
+      eof { exit 125 }
+    }
+    send -- $env(KEYS)
+    expect {
+      eof {}
+      timeout { exit 124 }
+    }
+    exit [lindex [wait] 3]
+  '
+}
+
+@test "interactive rollback switches to the release picked in a terminal" {
+  deploy_three_releases
+
+  run -0 rollback_in_terminal $'j\r'
+  assert_output --partial "Rolled back to"
+  assert_live_version v1
+}
+
+@test "interactive rollback leaves the release alone when cancelled in a terminal" {
+  deploy_three_releases
+
+  run -1 rollback_in_terminal 'q'
+  assert_output --partial "selection cancelled"
+  assert_live_version v3
+}
+
 @test "rollback fails when no releases exist" {
   run -1 ${BIN} rollback production -n -1
   assert_output --partial "No releases found"
