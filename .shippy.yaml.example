@@ -183,7 +183,8 @@ commands:
 # Optional: Commands to run after rollback (on remote server)
 # Executed in the rolled-back release directory after the "current" symlink
 # is switched. Unlike "commands" above, rollback commands have no defaults —
-# rollback only swaps the symlink unless you configure commands here.
+# rollback only swaps the symlink unless you configure commands here. If one
+# fails, rollback exits with an error but the selected release stays live.
 rollback_commands:
   - name: Flush caches
     run: ./vendor/bin/typo3 cache:flush

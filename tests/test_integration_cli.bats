@@ -201,7 +201,8 @@ zip_entries() {
   sed -i.bak 's/pwd > rollback_marker.txt/exit 7/' .shippy.yaml
 
   run -1 ${BIN} rollback production -n -1
-  assert_output --partial "Rollback command execution failed"
+  assert_output --partial "is live, but a rollback command failed"
+  assert_live_version v1
 }
 
 @test "rollback -r refuses the current release" {

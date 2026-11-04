@@ -159,7 +159,7 @@ commands:
 
 ### Commands
 
-`commands` (and `rollback_commands`) run in the new release directory, in order, before the atomic switchover. Each entry needs a `name` and a `run`:
+`commands` run in the new release directory, in order, before the atomic switchover. `rollback_commands` run in the selected release directory after `current` has switched; if one fails, `shippy rollback` exits with an error but the selected release stays live. Each entry needs a `name` and a `run`:
 
 ```yaml
 commands:
