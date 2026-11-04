@@ -244,6 +244,14 @@ zip_entries() {
   assert_output --partial "Only one release exists"
 }
 
+@test "rollback without a target fails without a terminal instead of hanging" {
+  deploy_three_releases
+
+  run -1 ${BIN} rollback production < /dev/null
+  assert_output --partial "interactive selection needs a terminal: use --release or --offset"
+  assert_live_version v3
+}
+
 @test "rollback fails when no releases exist" {
   run -1 ${BIN} rollback production -n -1
   assert_output --partial "No releases found"

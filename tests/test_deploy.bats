@@ -166,3 +166,8 @@ teardown() {
   run -0 ${BIN} deploy production --dry-run -v --config ${BATS_TEST_DIRNAME}/config-test/minimal.yaml
   assert_output --partial "composer.json"
 }
+
+@test "Should fail without a terminal when several hosts need selecting" {
+  run -1 ${BIN} deploy --config ${BATS_TEST_DIRNAME}/config-test/multi-host.yaml < /dev/null
+  assert_output --partial "interactive selection needs a terminal: pass the host name as an argument"
+}
