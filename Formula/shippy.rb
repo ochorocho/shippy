@@ -2,6 +2,7 @@
 #
 # Install via tap:
 #   brew tap ochorocho/shippy https://github.com/ochorocho/shippy
+#   brew trust ochorocho/shippy
 #   brew install shippy
 #
 # Do NOT hand-edit the version/url/sha256 values below — run `make brew-formula`
