@@ -225,7 +225,15 @@ hosts:
 `dir_mode`'s leading `2` is the setgid bit, but the group itself is inherited from the filesystem.
 For new files to land in the right group, make your `deploy_path` setgid and owned by that group
 (for example `chgrp www-data` and `chmod 2775`).
+
+The deploy user does not need to be a member of that group. Shippy creates every release
+directory at `dir_mode` right away instead of changing its mode afterwards, because a mode change
+by a user outside the group makes Linux drop the setgid bit.
 :::
+
+The defaults match TYPO3's own `fileCreateMask` (`0664`) and `folderCreateMask` (`2775`). Shared
+directories that shippy creates on the first deploy get the server's umask, so create writable ones
+like `fileadmin/` or `var/` yourself with the modes you need.
 
 ## Next steps
 

@@ -144,7 +144,7 @@ func (d *Deployer) Deploy() error {
 	out.StepNumber(3, "Creating new release")
 
 	releaseMgr := NewReleaseManager(client, d.host.DeployPath)
-	releasePath, err := releaseMgr.CreateRelease()
+	releasePath, err := releaseMgr.CreateRelease(d.config.GetDirMode(d.host))
 	if err != nil {
 		return fmt.Errorf("failed to create release: %w", err)
 	}

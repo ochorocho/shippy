@@ -408,6 +408,32 @@ setup_backup_source() {
   assert_output --partial "Uploaded 1 files"
 }
 
+# A non-root deploy user outside the siteroot's group (www-data) cannot keep the
+# setgid bit through a chmod, so release dirs must be created at their final mode.
+@test "deploy keeps the setgid bit and group for a deploy user outside the group" {
+  remote rm -rf /var/www/setgid
+  remote install -d -o deploy -g www-data -m 2775 /var/www/setgid
+  mkdir -p app/sub/deep
+  printf 'x\n' > app/sub/deep/page.php
+  cat >> .shippy.yaml <<EOF
+  setgid:
+    hostname: 127.0.0.1
+    port: 2424
+    remote_user: deploy
+    deploy_path: /var/www/setgid
+    ssh_key: ${BATS_TEST_DIRNAME}/ssh_keys/shippy_key
+    ssh_options:
+      StrictHostKeyChecking: "no"
+EOF
+
+  run -0 ${BIN} deploy setgid
+
+  run -0 remote find /var/www/setgid/releases -mindepth 1 -type d ! -perm -2000
+  assert_output ""
+  run -0 remote find /var/www/setgid/releases -mindepth 1 ! -group www-data
+  assert_output ""
+}
+
 # Unlock
 
 write_foreign_lock() {

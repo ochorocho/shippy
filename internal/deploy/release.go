@@ -44,7 +44,10 @@ func NewReleaseManager(client commandRunner, deployPath string) *ReleaseManager 
 //	└── shared/
 //	    ├── .env
 //	    └── var/
-func (r *ReleaseManager) CreateRelease() (string, error) {
+//
+// dirMode (e.g. "2775") is the mode the release dir is created at; "" leaves it
+// to the remote umask.
+func (r *ReleaseManager) CreateRelease(dirMode string) (string, error) {
 	releasesDir := filepath.Join(r.deployPath, "releases")
 
 	// Create releases directory
@@ -57,8 +60,14 @@ func (r *ReleaseManager) CreateRelease() (string, error) {
 		return "", err
 	}
 
-	// Create the release directory
-	if err := r.client.MkdirAll(releasePath); err != nil {
+	// Create the release directory at its final mode, so the promote rsync has no
+	// reason to chmod it. A chmod by a deploy user outside the inherited group
+	// (e.g. www-data) makes the kernel drop the setgid bit.
+	if umask := config.DirUmask(dirMode); umask != "" {
+		if _, err := r.client.RunCommand(fmt.Sprintf("umask %s && mkdir -p %s", umask, ssh.Quote(releasePath))); err != nil {
+			return "", fmt.Errorf("failed to create release directory: %w", err)
+		}
+	} else if err := r.client.MkdirAll(releasePath); err != nil {
 		return "", fmt.Errorf("failed to create release directory: %w", err)
 	}
 

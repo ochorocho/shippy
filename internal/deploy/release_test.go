@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ochorocho/shippy/internal/ssh"
 )
 
 // fakeClient records remote commands and mkdir calls, returning canned output.
@@ -64,7 +66,7 @@ func TestCreateReleaseMakesDirs(t *testing.T) {
 	f := &fakeClient{}
 	r := NewReleaseManager(f, spacedDeploy)
 
-	releasePath, err := r.CreateRelease()
+	releasePath, err := r.CreateRelease("")
 	if err != nil {
 		t.Fatalf("CreateRelease() error = %v", err)
 	}
@@ -76,6 +78,26 @@ func TestCreateReleaseMakesDirs(t *testing.T) {
 	}
 	if !f.madeDir(releasePath) {
 		t.Errorf("expected release dir %q created, mkdirs: %v", releasePath, f.mkdirs)
+	}
+}
+
+// The release dir is created at dir_mode via umask, so the promote rsync never
+// has to chmod it: a chmod by a deploy user outside the inherited group (e.g.
+// www-data) makes the kernel drop the setgid bit.
+func TestCreateReleaseCreatesReleaseDirUnderDirModeUmask(t *testing.T) {
+	f := &fakeClient{}
+	r := NewReleaseManager(f, spacedDeploy)
+
+	releasePath, err := r.CreateRelease("2775")
+	if err != nil {
+		t.Fatalf("CreateRelease() error = %v", err)
+	}
+	want := "umask 0002 && mkdir -p " + ssh.Quote(releasePath)
+	if !f.saw(want) {
+		t.Errorf("expected %q, commands: %v", want, f.commands)
+	}
+	if f.madeDir(releasePath) {
+		t.Errorf("release dir created without the umask, mkdirs: %v", f.mkdirs)
 	}
 }
 
@@ -96,7 +118,7 @@ func TestCreateReleaseAvoidsSameSecondCollision(t *testing.T) {
 	}}
 	r := NewReleaseManager(f, spacedDeploy)
 
-	releasePath, err := r.CreateRelease()
+	releasePath, err := r.CreateRelease("")
 	if err != nil {
 		t.Fatalf("CreateRelease() error = %v", err)
 	}
@@ -249,7 +271,7 @@ func TestReadReleaseMetadataQuotesAndParses(t *testing.T) {
 func TestCreateReleaseIsNamedAfterTheServerTime(t *testing.T) {
 	r := NewReleaseManager(&fakeClient{}, spacedDeploy)
 
-	releasePath, err := r.CreateRelease()
+	releasePath, err := r.CreateRelease("")
 	if err != nil {
 		t.Fatalf("CreateRelease() error = %v", err)
 	}
@@ -273,7 +295,7 @@ func TestCreateReleaseFailsWithoutAUsableServerTime(t *testing.T) {
 			f := &fakeClient{dateOutput: tt.date}
 			r := NewReleaseManager(f, spacedDeploy)
 
-			if _, err := r.CreateRelease(); err == nil {
+			if _, err := r.CreateRelease(""); err == nil {
 				t.Fatal("CreateRelease() succeeded, want an error")
 			}
 			if len(f.mkdirs) > 1 {
