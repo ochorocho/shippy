@@ -335,6 +335,44 @@ func TestSyncNormalizesCacheModes(t *testing.T) {
 	}
 }
 
+// TestSyncCreatesReleaseDirsBeforePromote verifies the promote creates the
+// release directories with mkdir under dir_mode's umask before rsync runs. rsync
+// would otherwise create them with temporary modes and chmod them afterwards,
+// and a chmod by a deploy user outside the inherited group (e.g. www-data) makes
+// the kernel drop the setgid bit, so deeper levels get the wrong group.
+func TestSyncCreatesReleaseDirsBeforePromote(t *testing.T) {
+	if !rsyncSupportsChmod(t) {
+		t.Skip("rsync does not support --chmod (e.g. macOS openrsync); validated in CI on GNU rsync")
+	}
+
+	src := t.TempDir()
+	deploy := t.TempDir()
+	release := filepath.Join(deploy, "releases", "20240105120000")
+	writeFileMode(t, filepath.Join(src, "a/b c/app.php"), "x", 0o644)
+
+	remote := &localRemote{}
+	s := NewSyncer(remote, release, false, deploy, src, "0664", "2775")
+	files, _ := scanFixture(t, src)
+	if err := s.Sync(files); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	var promote string
+	for _, c := range remote.commands {
+		if strings.Contains(c, "rsync -rlt") {
+			promote = c
+		}
+	}
+	mkdirs := strings.Index(promote, "xargs -0 mkdir -p")
+	if !strings.HasPrefix(promote, "umask 0002 && ") || mkdirs < 0 || mkdirs > strings.Index(promote, "rsync -rlt") {
+		t.Fatalf("promote does not create the dirs under umask 0002 before rsync: %q", promote)
+	}
+
+	if _, err := os.Stat(filepath.Join(release, "a/b c/app.php")); err != nil {
+		t.Errorf("file not promoted into a dir with a space: %v", err)
+	}
+}
+
 // gidOf returns the group id of a path (Linux/Unix test helper).
 func gidOf(t *testing.T, path string) uint32 {
 	t.Helper()

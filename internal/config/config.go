@@ -372,6 +372,22 @@ func ParseMode(mode string) (int64, error) {
 	return m, nil
 }
 
+// DirUmask returns the umask under which mkdir creates directories with exactly
+// dirMode's permission bits (e.g. "2775" -> "0002"), or "" for an empty or invalid
+// mode. Creating directories at their final mode means nothing has to chmod them
+// later: a chmod by a user outside the directory's group makes the kernel drop the
+// inherited setgid bit.
+func DirUmask(dirMode string) string {
+	if dirMode == "" {
+		return ""
+	}
+	m, err := ParseMode(dirMode)
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf("%04o", 0o777&^(m&0o777))
+}
+
 // GetCommandContext resolves the command context for a single command using
 // precedence: per-command override > per-host > global. A per-command context
 // of "" (non-nil) explicitly forces execution on the host; nil inherits.

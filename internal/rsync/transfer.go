@@ -11,6 +11,7 @@ import (
 
 	"github.com/gokrazy/rsync/rsyncclient"
 
+	"github.com/ochorocho/shippy/internal/config"
 	"github.com/ochorocho/shippy/internal/ssh"
 	"github.com/ochorocho/shippy/internal/ui"
 )
@@ -127,6 +128,17 @@ func (s *Syncer) Sync(files []FileInfo) error {
 		"rsync -rlt %s --delete %s/ %s/",
 		modeArg, ssh.Quote(cachePath), ssh.Quote(s.remotePath),
 	)
+	// Create the release dirs with mkdir at dir_mode first. rsync would create them
+	// with temporary modes and chmod them afterwards, and a chmod by a deploy user
+	// outside the inherited group (e.g. www-data) makes the kernel drop the setgid
+	// bit, so every deeper level gets the user's group. Dirs that already have the
+	// final mode are left alone by rsync.
+	if umask := config.DirUmask(s.dirMode); umask != "" {
+		promote = fmt.Sprintf(
+			"umask %s && cd %s && find . -type d -print0 | (cd %s && xargs -0 mkdir -p) && %s",
+			umask, ssh.Quote(cachePath), ssh.Quote(s.remotePath), promote,
+		)
+	}
 	if output, err := s.client.RunCommand(promote); err != nil {
 		return fmt.Errorf("failed to promote cache to release: %w (output: %s)", err, output)
 	}

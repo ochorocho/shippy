@@ -6,6 +6,9 @@ RUN apt update -y && apt install openssh-server rsync libicu-dev libzip-dev unzi
     docker-php-ext-install intl mysqli && \
     mkdir -p /root/.ssh && \
     chmod 640 /root/.ssh/authorized_keys && \
+    useradd -m -s /bin/bash deploy && \
+    install -d -o deploy -g deploy -m 700 /home/deploy/.ssh && \
+    install -o deploy -g deploy -m 600 /root/.ssh/authorized_keys /home/deploy/.ssh/authorized_keys && \
     sed -ri -e 's!/var/www/html!/var/www/html/current/public!g' /etc/apache2/sites-available/*.conf && \
     sed -ri -e 's!/var/www/!/var/www/html/current/public!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 

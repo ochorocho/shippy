@@ -109,3 +109,24 @@ func TestDefaultModesAreGroupWritable(t *testing.T) {
 		t.Errorf("DefaultDirMode %q not group-writable+setgid (err=%v)", DefaultDirMode, err)
 	}
 }
+
+func TestDirUmask(t *testing.T) {
+	tests := []struct {
+		mode string
+		want string
+	}{
+		{"2775", "0002"},
+		{"0755", "0022"},
+		{"2770", "0007"},
+		{"0700", "0077"},
+		{"", ""},
+		{"abc", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.mode, func(t *testing.T) {
+			if got := DirUmask(tt.mode); got != tt.want {
+				t.Errorf("DirUmask(%q) = %q, want %q", tt.mode, got, tt.want)
+			}
+		})
+	}
+}
